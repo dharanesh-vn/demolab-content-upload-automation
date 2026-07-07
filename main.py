@@ -52,10 +52,43 @@ def main():
         print("No valid questions found in docx.")
         return
         
-    print(f"Successfully validated {len(validated_questions)} questions. Starting uploader...")
+    print(f"\n=====================================")
+    print(f"Total Questions Extracted: {len(validated_questions)}")
+    print(f"=====================================")
+    for q in validated_questions:
+        att_status = f"📎 {q.attachment_filename}" if q.attachment_filename else "No Attachment"
+        print(f"Q{q.question_number}: {q.title[:40]:<42} | {att_status}")
+    print(f"=====================================\n")
+    
+    try:
+        start_q = int(input("Enter the starting question number to upload (e.g. 1): ").strip())
+        end_q = int(input(f"Enter the ending question number to upload (e.g. {len(validated_questions)}): ").strip())
+    except ValueError:
+        print("Invalid input! Please enter valid numbers.")
+        return
+
+    subset_questions = [q for q in validated_questions if start_q <= q.question_number <= end_q]
+    
+    if not subset_questions:
+        print("No questions found in that range!")
+        return
+        
+    print("\n--- Navigation Setup ---")
+    subj_choice = input("Select Subject Type (0 for Academic, 1 for Programming Subjects): ").strip()
+    config["subject_type"] = "academic" if subj_choice == "0" else "programming"
+    
+    course_name = input("Enter Course Name (Case Sensitive, e.g. 'Assign testing demo'): ").strip()
+    if course_name:
+        config["course_name"] = course_name
+        
+    module_name = input("Enter Module Name (Case Sensitive, e.g. 'Sample 02'): ").strip()
+    if module_name:
+        config["module_name"] = module_name
+        
+    print(f"\nStarting uploader for {len(subset_questions)} questions (Q{start_q} to Q{end_q})...")
     
     run_uploader(
-        questions=validated_questions,
+        questions=subset_questions,
         config=config,
         credentials={"username": username, "password": password}
     )

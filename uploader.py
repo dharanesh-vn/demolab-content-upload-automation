@@ -61,11 +61,25 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
         page.locator('text=Add Questions').first.click()
         page.wait_for_timeout(1000)
         
-        # 4. Select course and module from sidebar
+        # 4. Select subject type
+        if config.get("subject_type") == "programming":
+            print("Clicking 'Prog... Subjects' tab...")
+            page.locator('text=Prog... Subjects').first.click()
+        else:
+            print("Clicking 'Academic' tab...")
+            page.locator('text=Academic').first.click()
+        page.wait_for_timeout(1000)
+        
+        # 5. Search and select course and module
         course = config["course_name"]
         module = config["module_name"]
         
-        print(f"Selecting Course: {course}")
+        print(f"Searching and Selecting Course: {course}")
+        search_input = page.locator('input[name="search_term"]')
+        if search_input.count() > 0:
+            search_input.fill(course)
+            page.wait_for_timeout(1000)
+            
         course_loc = page.get_by_text(course, exact=True).first
         course_loc.click()
         page.wait_for_timeout(1000)
@@ -83,6 +97,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
         expect(page.get_by_text("Project Questions Configuration")).to_be_visible(timeout=10000)
         
         # --- 3. Upload questions ---
+        form_index = 0
         for i, q in enumerate(questions):
             if q.question_number in completed_q_nums:
                 print(f"Skipping Q{q.question_number} (already logged as success).")
@@ -91,10 +106,10 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
             print(f"Uploading Q{q.question_number}: {q.title[:30]}...")
             try:
                 # 1. Fill Title
-                page.locator('input[name="question_title"]').first.fill(q.title[:150])
+                page.locator('input[name="question_title"]').nth(form_index).fill(q.title[:150])
                 
                 # 2. Select Difficulty
-                diff_input = page.locator('input.select__input').nth(0)
+                diff_input = page.locator('input.select__input').nth(form_index * 3 + 0)
                 diff_input.click(force=True)
                 page.wait_for_timeout(300)
                 diff_input.fill(q.difficulty)
@@ -103,7 +118,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 
                 # 3. Select Tags
                 tag_to_use = config.get("default_tags", "Management systems")
-                tag_input = page.locator('input.select__input').nth(1)
+                tag_input = page.locator('input.select__input').nth(form_index * 3 + 1)
                 tag_input.click(force=True)
                 page.wait_for_timeout(300)
                 tag_input.fill(tag_to_use)
@@ -112,7 +127,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 
                 # 4. Select Language -> "Assignment"
                 language_to_use = config.get("language", "Assignment")
-                lang_input = page.locator('input.select__input').nth(2)
+                lang_input = page.locator('input.select__input').nth(form_index * 3 + 2)
                 lang_input.click(force=True)
                 page.wait_for_timeout(300) 
                 lang_input.fill(language_to_use)
@@ -120,23 +135,57 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 page.keyboard.press("Enter")
                 
                 # 5. Actual time
-                page.locator('input[name="actualTime"]').fill(str(q.actual_time_minutes))
+                page.locator('input[name="actualTime"]').nth(form_index).fill(str(q.actual_time_minutes))
                 
                 # 6. Question Text (Rich Text Editor)
-                editor = page.locator('.ProseMirror, [contenteditable="true"]').first
+                editor = page.locator('.ProseMirror, [contenteditable="true"]').nth(form_index)
                 full_text = q.question_text
                 if q.submission_instructions:
                     full_text += f"\n\n{q.submission_instructions}"
                 editor.fill(full_text)
                 
-                print("All fields and question text fetched successfully!")
-                input("Paused! Please check the browser. Press ENTER in this terminal to exit...")
-                return
+                # 7. File Attachment
+                if q.attachment_filename:
+                    att_path = Path(config["attachments_root"]) / q.attachment_filename
+                    if att_path.exists():
+                        print(f"Attaching: {q.attachment_filename}")
+                        abs_path = str(att_path.absolute())
+                        try:
+                            file_input = page.locator('input[type="file"]')
+                            if file_input.count() > form_index:
+                                file_input.nth(form_index).set_input_files(abs_path)
+                            else:
+                                with page.expect_file_chooser() as fc_info:
+                                    page.locator('text=Click to upload').nth(form_index).click()
+                                fc_info.value.set_files(abs_path)
+                            page.wait_for_timeout(1000)
+                        except Exception as e:
+                            print(f"Failed to attach file: {e}")
+                    else:
+                        print(f"WARNING: Attachment missing: {att_path}")
+                        
+                # 8. User Response Acceptance (PDF and Images)
+                try:
+                    page.get_by_role("button", name="PDF").last.click()
+                    page.get_by_role("button", name="Images").last.click()
+                except:
+                    pass
+                
+                # 9. Save or Add Another
+                if i == len(questions) - 1:
+                    print("Last question! Clicking Save Questions...")
+                    page.get_by_role("button", name="Save Questions").last.click()
+                else:
+                    print("Clicking Add Question...")
+                    page.get_by_role("button", name="Add Question").last.click()
+                    page.wait_for_timeout(2000)
                 
                 # Log success
                 with open(log_file, "a", encoding="utf-8", newline="") as f:
                     writer = csv.writer(f)
                     writer.writerow([q.question_number, "success", time.time(), ""])
+                    
+                form_index += 1
                     
             except Exception as e:
                 print(f"Failed on Q{q.question_number}: {e}")

@@ -2,3 +2,11 @@
 Call log:
   - waiting for get_by_text(""Medium"", exact=True).first
 "
+1,failed,1783414990.2530212,"Locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for get_by_text(""Easy"", exact=True).first
+"
+1,failed,1783415286.3835795,"Locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for get_by_text(""Assignment"", exact=True).first
+"

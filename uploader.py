@@ -94,26 +94,29 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 page.locator('input[placeholder*="Title"], input[name*="title"]').first.fill(q.title[:150])
                 
                 # 2. Select Difficulty
-                page.locator('div').filter(has_text="Difficulty Level").locator('svg').last.click()
-                page.get_by_text(q.difficulty, exact=True).first.click()
+                diff_container = page.locator('div', has_text="Difficulty Level").last
+                diff_container.click()
+                page.wait_for_timeout(500)
+                page.get_by_text(q.difficulty).last.click()
                 
                 # 3. Select Tags
-                tag_to_use = q.tags if q.tags else "General"
-                page.locator('div').filter(has_text="Tags *").locator('svg').last.click()
+                tag_to_use = config.get("default_tags", "Management systems")
+                tag_container = page.locator('div', has_text="Tags").last
+                tag_container.click()
+                page.wait_for_timeout(500)
                 try:
                     page.keyboard.type(tag_to_use)
+                    page.wait_for_timeout(500)
                     page.keyboard.press("Enter")
                 except:
                     pass
                 
                 # 4. Select Language -> "Assignment"
                 language_to_use = config.get("language", "Assignment")
-                # Using get_by_label or checking the div
-                try:
-                    page.get_by_label(re.compile(r"Language")).click()
-                except:
-                    page.locator('div').filter(has_text="Language *").locator('svg').last.click()
-                page.get_by_text(language_to_use, exact=True).first.click()
+                lang_container = page.locator('div', has_text="Language").last
+                lang_container.click()
+                page.wait_for_timeout(500) 
+                page.get_by_text(language_to_use).last.click()
                 page.wait_for_timeout(500) 
                 
                 # 5. Actual time

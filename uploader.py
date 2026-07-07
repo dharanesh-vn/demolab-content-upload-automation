@@ -151,14 +151,12 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                         print(f"Attaching: {q.attachment_filename}")
                         abs_path = str(att_path.absolute())
                         try:
-                            file_input = page.locator('input[type="file"]')
-                            if file_input.count() > form_index:
-                                file_input.nth(form_index).set_input_files(abs_path)
-                            else:
-                                with page.expect_file_chooser() as fc_info:
-                                    page.locator('text=Click to upload').nth(form_index).click()
-                                fc_info.value.set_files(abs_path)
-                            page.wait_for_timeout(1000)
+                            with page.expect_file_chooser() as fc_info:
+                                page.locator('text=Click to upload').nth(form_index).click(force=True)
+                            fc_info.value.set_files(abs_path)
+                            print(f"Successfully injected file: {q.attachment_filename}")
+                            # Wait a bit longer to allow the website to process the upload to their server
+                            page.wait_for_timeout(3000)
                         except Exception as e:
                             print(f"Failed to attach file: {e}")
                     else:
@@ -175,6 +173,8 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 if i == len(questions) - 1:
                     print("Last question! Clicking Save Questions...")
                     page.get_by_role("button", name="Save Questions").last.click()
+                    print("Waiting for server to process the save...")
+                    page.wait_for_timeout(10000)
                 else:
                     print("Clicking Add Question...")
                     page.get_by_role("button", name="Add Question").last.click()

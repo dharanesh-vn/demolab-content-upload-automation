@@ -31,3 +31,6 @@ attachments/
 26SWP03_M2_Assignments_2026-27/
 *.docx
 upload_log.csv
+run_log.csv
+parsed_questions.json
+*.log

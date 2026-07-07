@@ -1,0 +1,4 @@
+1,failed,1783409023.4591556,"Locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for get_by_text(""Medium"", exact=True).first
+"

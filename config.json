@@ -1,0 +1,12 @@
+{
+  "login_url": "https://demolab.amypo.ai/login",
+  "question_bank_url": "https://demolab.amypo.ai/question-bank",
+  "course_name": "Assign testing demo",
+  "module_name": "Sample 01",
+  "docx_path": "./26SWP05_M1_Assignments_2026-27/26SWP05_M1_Assignment_Questions.docx",
+  "attachments_root": "./26SWP05_M1_Assignments_2026-27/Attachments",
+  "default_difficulty": "Medium",
+  "default_actual_time_minutes": 180,
+  "otp_wait_timeout_ms": 120000,
+  "language": "Assignment"
+}

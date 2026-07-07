@@ -1,0 +1,33 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv/
+
+# Environment variables
+.env
+
+# Playwright / Browser automation
+test-results/
+screenshots/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project specific
+attachments/
+26SWP05_M1_Assignments_2026-27/
+26SWP03_M2_Assignments_2026-27/
+*.docx
+upload_log.csv

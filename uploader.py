@@ -91,39 +91,36 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
             print(f"Uploading Q{q.question_number}: {q.title[:30]}...")
             try:
                 # 1. Fill Title
-                page.locator('input[placeholder*="Title"], input[name*="title"]').first.fill(q.title[:150])
+                page.locator('input[name="question_title"]').first.fill(q.title[:150])
                 
                 # 2. Select Difficulty
-                diff_container = page.locator('div', has_text="Difficulty Level").last
-                diff_container.click()
+                diff_input = page.locator('input.select__input').nth(0)
+                diff_input.click(force=True)
+                page.wait_for_timeout(300)
+                diff_input.fill(q.difficulty)
                 page.wait_for_timeout(500)
-                page.get_by_text(q.difficulty).last.click()
+                page.keyboard.press("Enter")
                 
                 # 3. Select Tags
                 tag_to_use = config.get("default_tags", "Management systems")
-                tag_container = page.locator('div', has_text="Tags").last
-                tag_container.click()
+                tag_input = page.locator('input.select__input').nth(1)
+                tag_input.click(force=True)
+                page.wait_for_timeout(300)
+                tag_input.fill(tag_to_use)
                 page.wait_for_timeout(500)
-                try:
-                    page.keyboard.type(tag_to_use)
-                    page.wait_for_timeout(500)
-                    page.keyboard.press("Enter")
-                except:
-                    pass
+                page.keyboard.press("Enter")
                 
                 # 4. Select Language -> "Assignment"
                 language_to_use = config.get("language", "Assignment")
-                lang_container = page.locator('div', has_text="Language").last
-                lang_container.click()
-                page.wait_for_timeout(500) 
-                page.get_by_text(language_to_use).last.click()
-                page.wait_for_timeout(500) 
+                lang_input = page.locator('input.select__input').nth(2)
+                lang_input.click(force=True)
+                page.wait_for_timeout(300) 
+                lang_input.fill(language_to_use)
+                page.wait_for_timeout(500)
+                page.keyboard.press("Enter")
                 
                 # 5. Actual time
-                try:
-                    page.get_by_label(re.compile(r"Actual time")).fill(str(q.actual_time_minutes))
-                except:
-                    page.locator('input[placeholder="0"], input[name*="time"]').last.fill(str(q.actual_time_minutes))
+                page.locator('input[name="actualTime"]').fill(str(q.actual_time_minutes))
                 
                 # 6. Question Text (Rich Text Editor)
                 editor = page.locator('.ProseMirror, [contenteditable="true"]').first
@@ -132,34 +129,9 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     full_text += f"\n\n{q.submission_instructions}"
                 editor.fill(full_text)
                 
-                # 7. File Attachment
-                if q.attachment_filename:
-                    att_path = Path(config["attachments_root"]) / q.attachment_filename
-                    if att_path.exists():
-                        print(f"Attaching: {q.attachment_filename}")
-                        file_input = page.locator('input[type="file"]')
-                        if file_input.count() > 0:
-                            file_input.first.set_input_files(str(att_path))
-                        else:
-                            with page.expect_file_chooser() as fc_info:
-                                page.locator('text=Click to upload').first.click()
-                            fc_info.value.set_files(str(att_path))
-                        page.wait_for_timeout(1000) 
-                    else:
-                        print(f"WARNING: Attachment missing: {att_path}")
-                
-                # 8. User Response Acceptance (PDF and Images)
-                page.get_by_role("button", name="PDF").click()
-                page.get_by_role("button", name="Images").click()
-                
-                # 9. Save or Add Another
-                if i == len(questions) - 1:
-                    print("Last question! Clicking Save Questions...")
-                    page.get_by_role("button", name="Save Questions").click()
-                else:
-                    print("Clicking Add Question...")
-                    page.get_by_role("button", name="Add Question").first.click()
-                    page.wait_for_timeout(2000)
+                print("All fields and question text fetched successfully!")
+                input("Paused! Please check the browser. Press ENTER in this terminal to exit...")
+                return
                 
                 # Log success
                 with open(log_file, "a", encoding="utf-8", newline="") as f:

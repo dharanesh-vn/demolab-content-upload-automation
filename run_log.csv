@@ -10,3 +10,23 @@ Call log:
 Call log:
   - waiting for get_by_text(""Assignment"", exact=True).first
 "
+1,failed,1783415572.2051349,"Locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for get_by_text(""Assignment"").last
+"
+1,failed,1783415940.2975059,"Locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for get_by_text(""Assignment"").last
+"
+1,failed,1783416175.9321034,"Locator.fill: Error: strict mode violation: locator(""div"").filter(has_text=""Difficulty Level *"").locator(""input.select__input"") resolved to 3 elements:
+    1) <input value="""" type=""text"" tabindex=""0"" role=""combobox"" autocorrect=""off"" autocomplete=""off"" spellcheck=""false"" aria-haspopup=""true"" class=""select__input"" autocapitalize=""none"" aria-expanded=""false"" aria-autocomplete=""list"" aria-activedescendant="""" id=""react-select-3-input"" aria-describedby=""react-select-3-placeholder""/> aka locator(""#react-select-3-input"")
+    2) <input value="""" type=""text"" tabindex=""0"" role=""combobox"" autocorrect=""off"" autocomplete=""off"" spellcheck=""false"" aria-haspopup=""true"" class=""select__input"" autocapitalize=""none"" aria-expanded=""false"" aria-autocomplete=""list"" aria-activedescendant="""" id=""react-select-4-input"" aria-describedby=""react-select-4-placeholder""/> aka locator(""#react-select-4-input"")
+    3) <input value="""" type=""text"" tabindex=""0"" role=""combobox"" autocorrect=""off"" autocomplete=""off"" spellcheck=""false"" aria-haspopup=""true"" class=""select__input"" autocapitalize=""none"" aria-expanded=""false"" aria-autocomplete=""list"" aria-activedescendant="""" id=""react-select-5-input"" aria-describedby=""react-select-5-placeholder""/> aka locator(""#react-select-5-input"")
+
+Call log:
+  - waiting for locator(""div"").filter(has_text=""Difficulty Level *"").locator(""input.select__input"")
+"
+1,failed,1783416322.7059176,"Locator.fill: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator(""div"").filter(has_text=""Tags *"").last.locator(""input.select__input"").first
+"

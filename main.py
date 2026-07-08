@@ -1,5 +1,6 @@
 import os
 import json
+import csv
 import re
 from dotenv import load_dotenv
 from parser import parse_docx
@@ -52,7 +53,8 @@ def main():
             tags=q_dict["tags"],
             difficulty=config["default_difficulty"],
             language=config["language"],
-            actual_time_minutes=config["default_actual_time_minutes"]
+            actual_time_minutes=config["default_actual_time_minutes"],
+            user_response_acceptance=q_dict.get("user_response_acceptance", "PDF, Images")
         )
         validated_questions.append(q)
         
@@ -75,19 +77,6 @@ def main():
         print(f"Q{q.question_number}: {q.title[:40]:<42} | {att_status}")
     print(f"=====================================\n")
     
-    try:
-        start_q = int(input("Enter the starting question number to upload (e.g. 1): ").strip())
-        end_q = int(input(f"Enter the ending question number to upload (e.g. {len(validated_questions)}): ").strip())
-    except ValueError:
-        print("Invalid input! Please enter valid numbers.")
-        return
-
-    subset_questions = [q for q in validated_questions if start_q <= q.question_number <= end_q]
-    
-    if not subset_questions:
-        print("No questions found in that range!")
-        return
-        
     print("\n--- Navigation Setup ---")
     subj_choice = input("Select Subject Type (0 for Academic, 1 for Programming Subjects): ").strip()
     config["subject_type"] = "academic" if subj_choice == "0" else "programming"
@@ -106,12 +95,79 @@ def main():
     language = get_letter_input("Enter Language (Case Sensitive, e.g. 'Assignment'): ")
     actual_time = int(get_number_input("Enter Actual time in minutes (e.g. '0'): "))
     
-    for q in subset_questions:
+    for q in validated_questions:
         q.difficulty = difficulty
         q.tags = tags
         q.language = language
         q.actual_time_minutes = actual_time
         
+    csv_file = "questions_review.csv"
+    print(f"\nWriting {len(validated_questions)} questions to {csv_file} for review...")
+    
+    headers = ["Question Title", "Difficulty Level", "Tags", "Language", "Actual time", "Question", "Attachment name", "User Response Acceptance"]
+    with open(csv_file, "w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(headers)
+        for q in validated_questions:
+            writer.writerow([
+                q.title,
+                q.difficulty,
+                q.tags,
+                q.language,
+                q.actual_time_minutes,
+                q.question_text,
+                q.attachment_filename or "",
+                q.user_response_acceptance
+            ])
+            
+    print("\n=======================================================")
+    print("CSV FILE GENERATED!")
+    print(f"Please open '{csv_file}' in Excel, review, and edit any rows if needed.")
+    print("Save the file when you are done.")
+    print("=======================================================")
+    
+    while True:
+        proceed = input("Enter 1 to proceed with upload, or 0 to exit: ").strip()
+        if proceed == "0":
+            print("Exiting...")
+            return
+        elif proceed == "1":
+            break
+            
+    print(f"\nReading updated data from {csv_file}...")
+    with open(csv_file, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for i, row in enumerate(reader):
+            if i < len(validated_questions):
+                q = validated_questions[i]
+                q.title = row["Question Title"]
+                q.difficulty = row["Difficulty Level"]
+                q.tags = row["Tags"]
+                q.language = row["Language"]
+                try:
+                    q.actual_time_minutes = int(row["Actual time"])
+                except ValueError:
+                    q.actual_time_minutes = 0
+                q.question_text = row["Question"]
+                att = row["Attachment name"].strip()
+                q.attachment_filename = att if att else None
+                q.user_response_acceptance = row["User Response Acceptance"]
+                
+    print(f"\n=====================================")
+    
+    try:
+        start_q = int(input("Enter the starting question number to upload (e.g. 1): ").strip())
+        end_q = int(input(f"Enter the ending question number to upload (e.g. {len(validated_questions)}): ").strip())
+    except ValueError:
+        print("Invalid input! Please enter valid numbers.")
+        return
+
+    subset_questions = [q for q in validated_questions if start_q <= q.question_number <= end_q]
+    
+    if not subset_questions:
+        print("No questions found in that range!")
+        return
+
     print(f"\nStarting uploader for {len(subset_questions)} questions (Q{start_q} to Q{end_q})...")
     
     run_uploader(

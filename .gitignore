@@ -25,12 +25,9 @@ playwright/.cache/
 *.swp
 *.swo
 
-# Project specific
-attachments/
-26SWP05_M1_Assignments_2026-27/
-26SWP03_M2_Assignments_2026-27/
-*.docx
+# Project generated temporary files
 upload_log.csv
 run_log.csv
 parsed_questions.json
+questions_review.csv
 *.log

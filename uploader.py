@@ -81,12 +81,26 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
             page.wait_for_timeout(1000)
             
         course_loc = page.get_by_text(course, exact=True).first
-        course_loc.click()
+        try:
+            course_loc.click(timeout=5000)
+        except Exception:
+            print(f"\n❌ ERROR: Could not find Course '{course}'.")
+            print("Please check your spelling and capitalization, then run again.")
+            browser.close()
+            return
+            
         page.wait_for_timeout(1000)
         
         print(f"Selecting Module: {module}")
         module_loc = page.get_by_text(module, exact=True).first
-        module_loc.click()
+        try:
+            module_loc.click(timeout=5000)
+        except Exception:
+            print(f"\n❌ ERROR: Could not find Module '{module}'.")
+            print("Please check your spelling and capitalization, then run again.")
+            browser.close()
+            return
+            
         page.wait_for_timeout(1000)
         
         # 5. Click the "Project Questions" card
@@ -113,24 +127,40 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 diff_input.click(force=True)
                 page.wait_for_timeout(300)
                 diff_input.fill(q.difficulty)
-                page.wait_for_timeout(500)
+                # Wait for menu to populate, then press ArrowDown to ensure the first item is highlighted, then Enter
+                page.wait_for_timeout(1000)
+                page.keyboard.press("ArrowDown")
+                page.wait_for_timeout(200)
                 page.keyboard.press("Enter")
+                page.wait_for_timeout(300)
+                if diff_input.input_value() != "":
+                    raise ValueError(f"CRITICAL ERROR: Failed to select Difficulty '{q.difficulty}'. This option is not available in the website dropdown.")
                 
                 # 3. Select Tags
                 tag_input = page.locator('input.select__input').nth(form_index * 3 + 1)
                 tag_input.click(force=True)
                 page.wait_for_timeout(300)
                 tag_input.fill(q.tags)
-                page.wait_for_timeout(500)
+                page.wait_for_timeout(1000)
+                page.keyboard.press("ArrowDown")
+                page.wait_for_timeout(200)
                 page.keyboard.press("Enter")
+                page.wait_for_timeout(300)
+                if tag_input.input_value() != "":
+                    raise ValueError(f"CRITICAL ERROR: Failed to select Tag '{q.tags}'. This tag is not available in the website dropdown.")
                 
                 # 4. Select Language
                 lang_input = page.locator('input.select__input').nth(form_index * 3 + 2)
                 lang_input.click(force=True)
-                page.wait_for_timeout(300) 
+                page.wait_for_timeout(300)
                 lang_input.fill(q.language)
-                page.wait_for_timeout(500)
+                page.wait_for_timeout(1000)
+                page.keyboard.press("ArrowDown")
+                page.wait_for_timeout(200)
                 page.keyboard.press("Enter")
+                page.wait_for_timeout(300)
+                if lang_input.input_value() != "":
+                    raise ValueError(f"CRITICAL ERROR: Failed to select Language '{q.language}'. This language is not available in the website dropdown.")
                 
                 # 5. Actual time
                 page.locator('input[name="actualTime"]').nth(form_index).fill(str(q.actual_time_minutes))
@@ -146,8 +176,12 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                         print(f"Attaching: {q.attachment_filename}")
                         abs_path = str(att_path.absolute())
                         try:
+                            # Using set_input_files breaks React state mapping, so we must physically click the dropzone.
+                            # Since button counts vary between Academic and Programming subjects, we use XPath 
+                            # to find the specific 'Click to upload' button immediately following THIS question's 'Assignment Attachments' label.
+                            xpath = f"(//*[contains(text(), 'Assignment Attachments')])[{form_index + 1}]/following::*[contains(text(), 'Click to upload')][1]"
                             with page.expect_file_chooser() as fc_info:
-                                page.locator('text=Click to upload').nth(form_index).click(force=True)
+                                page.locator(xpath).click(force=True)
                             fc_info.value.set_files(abs_path)
                             print(f"Successfully injected file: {q.attachment_filename}")
                             # Wait a bit longer to allow the website to process the upload to their server
@@ -157,28 +191,55 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     else:
                         print(f"WARNING: Attachment missing: {att_path}")
                         
-                # 8. User Response Acceptance (PDF and Images)
+                # 8. User Response Acceptance (PDF, Images, Word, ZIP, etc.)
                 try:
-                    page.get_by_role("button", name="PDF").last.click()
-                    page.get_by_role("button", name="Images").last.click()
-                except:
-                    pass
+                    acceptance_str = str(q.user_response_acceptance).lower()
+                    
+                    # Map keywords from the CSV to the exact button text on the website
+                    format_map = {
+                        "Word": ["word", "doc", "docx"],
+                        "PDF": ["pdf"],
+                        "ZIP": ["zip", "archive", "rar"],
+                        "Images": ["img", "image", "images", "png", "jpg", "jpeg"],
+                        "ODS / ODT": ["ods", "odt"],
+                        "Video": ["video", "mp4", "avi"]
+                    }
+                    
+                    # Check which buttons to click based on the keywords
+                    for button_text, keywords in format_map.items():
+                        if any(keyword in acceptance_str for keyword in keywords):
+                            # Click the button with the exact text on the latest question form
+                            page.locator(f'button:has-text("{button_text}")').last.click(timeout=2000)
+                            page.wait_for_timeout(300)
+                            
+                except Exception as e:
+                    print(f"Note: Could not select file formats automatically: {e}")
                 
-                # 9. Save or Add Another
-                if i == len(questions) - 1:
-                    print("Last question! Clicking Save Questions...")
-                    page.get_by_role("button", name="Save Questions").last.click()
-                    print("Waiting for server to process the save...")
-                    page.wait_for_timeout(10000)
-                else:
-                    print("Clicking Add Question...")
-                    page.get_by_role("button", name="Add Question").last.click()
-                    page.wait_for_timeout(2000)
-                
-                # Log success
+                # Log success for this specific question insertion
                 with open(log_file, "a", encoding="utf-8", newline="") as f:
                     writer = csv.writer(f)
                     writer.writerow([q.question_number, "success", time.time(), ""])
+                    
+                # 9. Save or Add Another
+                if i == len(questions) - 1:
+                    print("Last question! Clicking Save Questions...")
+                    page.locator('button', has_text='Save Questions').first.click()
+                    print("Waiting for server to process the save...")
+                    page.wait_for_timeout(2000)
+                    
+                    # Verify if the save was actually successful by checking if the modal closes
+                    try:
+                        # Wait up to 15 seconds for the modal/save button to disappear
+                        page.locator('button', has_text='Save Questions').first.wait_for(state='hidden', timeout=15000)
+                        print("✅ SUCCESS: Upload process completed successfully and questions were saved!")
+                    except Exception:
+                        print(f"\n❌ CRITICAL ERROR SAVING: The website rejected the save (or is taking too long)!")
+                        print("The 'Save Questions' button is still visible, which means the popup did not close.")
+                        print("Please check the browser window for any red error messages on the form fields.")
+                else:
+                    print("Clicking Add Question...")
+                    page.get_by_role("button", name="Add Question").last.click()
+                    page.wait_for_timeout(1000)
                     
                 form_index += 1
                     
@@ -191,5 +252,4 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     writer.writerow([q.question_number, "failed", time.time(), str(e)])
                 break
                 
-        print("Upload process completed!")
         browser.close()

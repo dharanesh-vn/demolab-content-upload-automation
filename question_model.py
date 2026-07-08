@@ -11,3 +11,4 @@ class Question(BaseModel):
     difficulty: str
     language: str
     actual_time_minutes: int
+    user_response_acceptance: str = "PDF, Images"

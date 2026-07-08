@@ -1,10 +1,25 @@
 import os
 import json
+import re
 from dotenv import load_dotenv
 from parser import parse_docx
 from question_model import Question
 from uploader import run_uploader
 from pathlib import Path
+
+def get_letter_input(prompt_text):
+    while True:
+        val = input(prompt_text).strip()
+        if re.match(r'^[a-zA-Z\s]+$', val):
+            return val
+        print("Invalid input. Please enter letters and spaces only.")
+
+def get_number_input(prompt_text):
+    while True:
+        val = input(prompt_text).strip()
+        if val.isdigit():
+            return val
+        print("Invalid input. Please enter numbers only.")
 
 def main():
     load_dotenv()
@@ -84,6 +99,18 @@ def main():
     module_name = input("Enter Module Name (Case Sensitive, e.g. 'Sample 02'): ").strip()
     if module_name:
         config["module_name"] = module_name
+        
+    print("\n--- Form Field Setup ---")
+    difficulty = get_letter_input("Enter Difficulty Level (Case Sensitive, e.g. 'easy'): ")
+    tags = get_letter_input("Enter Tags (Case Sensitive, e.g. 'Python'): ")
+    language = get_letter_input("Enter Language (Case Sensitive, e.g. 'Assignment'): ")
+    actual_time = int(get_number_input("Enter Actual time in minutes (e.g. '0'): "))
+    
+    for q in subset_questions:
+        q.difficulty = difficulty
+        q.tags = tags
+        q.language = language
+        q.actual_time_minutes = actual_time
         
     print(f"\nStarting uploader for {len(subset_questions)} questions (Q{start_q} to Q{end_q})...")
     

@@ -117,20 +117,18 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 page.keyboard.press("Enter")
                 
                 # 3. Select Tags
-                tag_to_use = config.get("default_tags", "Management systems")
                 tag_input = page.locator('input.select__input').nth(form_index * 3 + 1)
                 tag_input.click(force=True)
                 page.wait_for_timeout(300)
-                tag_input.fill(tag_to_use)
+                tag_input.fill(q.tags)
                 page.wait_for_timeout(500)
                 page.keyboard.press("Enter")
                 
-                # 4. Select Language -> "Assignment"
-                language_to_use = config.get("language", "Assignment")
+                # 4. Select Language
                 lang_input = page.locator('input.select__input').nth(form_index * 3 + 2)
                 lang_input.click(force=True)
                 page.wait_for_timeout(300) 
-                lang_input.fill(language_to_use)
+                lang_input.fill(q.language)
                 page.wait_for_timeout(500)
                 page.keyboard.press("Enter")
                 
@@ -139,10 +137,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 
                 # 6. Question Text (Rich Text Editor)
                 editor = page.locator('.ProseMirror, [contenteditable="true"]').nth(form_index)
-                full_text = q.question_text
-                if q.submission_instructions:
-                    full_text += f"\n\n{q.submission_instructions}"
-                editor.fill(full_text)
+                editor.fill(q.question_text)
                 
                 # 7. File Attachment
                 if q.attachment_filename:

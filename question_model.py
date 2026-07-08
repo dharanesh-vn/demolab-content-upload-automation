@@ -12,3 +12,4 @@ class Question(BaseModel):
     language: str
     actual_time_minutes: int
     user_response_acceptance: str = "PDF, Images"
+    resolved_attachment_path: Optional[str] = None

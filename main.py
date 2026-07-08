@@ -2,7 +2,8 @@ import os
 import json
 import csv
 import re
-from dotenv import load_dotenv
+import tkinter as tk
+from gui import get_credentials_and_file
 from parser import parse_docx
 from question_model import Question
 from uploader import run_uploader
@@ -23,25 +24,39 @@ def get_number_input(prompt_text):
         print("Invalid input. Please enter numbers only.")
 
 def main():
-    load_dotenv()
-    
-    # Check credentials
-    username = os.getenv("AMYPO_USERNAME")
-    password = os.getenv("AMYPO_PASSWORD")
-    if not username or not password:
-        print("Please set AMYPO_USERNAME and AMYPO_PASSWORD in .env")
-        return
-        
     # Load config
     with open("config.json", "r") as f:
         config = json.load(f)
         
-    print("Parsing docx file...")
+    print("\n=======================================================")
+    print("Please fill out your credentials and select the Assignment Word Document (.docx) in the popup window...")
+    print("=======================================================\n")
+    
+    # 1. Unified GUI for Credentials and File Selection
+    username, password, docx_file = get_credentials_and_file()
+    
+    if not username or not password or not docx_file:
+        print("Setup cancelled or incomplete. Exiting...")
+        return
+        
+    docx_path = Path(docx_file).absolute()
+    project_folder = docx_path.parent
+    attachments_root = project_folder / "Attachments"
+    
+    if not attachments_root.exists():
+        print(f"❌ WARNING: Could not find the 'Attachments' folder at: {attachments_root}")
+        print("The script will try to search the entire project folder for attachments instead.")
+        
+    # Inject dynamically discovered paths into config
+    config["docx_path"] = str(docx_path)
+    config["attachments_root"] = str(project_folder) # Use main project folder for rglob search
+        
+    print(f"Loading DOCX: {docx_path.name}")
+    print(f"Attachments Folder: {attachments_root}")
     raw_questions = parse_docx(config["docx_path"])
     
-    print("Validating and generating models...")
+    print("\nValidating and generating models...")
     validated_questions = []
-    attachments_root = Path(config["attachments_root"])
     
     for q_dict in raw_questions:
         q = Question(
@@ -58,13 +73,18 @@ def main():
         )
         validated_questions.append(q)
         
-        # Pre-check attachment existence
+        # Pre-check attachment existence using rglob
         if q.attachment_filename:
-            att_path = attachments_root / q.attachment_filename
-            if not att_path.exists():
-                print(f"CRITICAL ERROR: Missing attachment file for Q{q.question_number}: {att_path}")
+            # We search the entire project folder recursively for the filename
+            matched_files = list(project_folder.rglob(q.attachment_filename))
+            if not matched_files:
+                print(f"CRITICAL ERROR: Missing attachment file for Q{q.question_number}: {q.attachment_filename}")
+                print(f"I searched the entire directory: {project_folder}")
                 return
-    
+            else:
+                # Add the resolved absolute path to the question object temporarily for the uploader
+                q.resolved_attachment_path = matched_files[0]
+                
     if not validated_questions:
         print("No valid questions found in docx.")
         return

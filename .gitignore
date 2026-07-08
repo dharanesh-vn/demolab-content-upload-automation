@@ -31,3 +31,26 @@ run_log.csv
 parsed_questions.json
 questions_review.csv
 *.log
+
+# Ignore Course Data and Attachments
+*Assignments*/
+*.docx
+*.pdf
+*.zip
+*.ods
+*.odt
+
+# OS Generated Files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Testing and Build artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+26CSS01A_M1_Assignments_2026-27/

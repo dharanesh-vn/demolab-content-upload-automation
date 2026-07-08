@@ -170,8 +170,8 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 editor.fill(q.question_text)
                 
                 # 7. File Attachment
-                if q.attachment_filename:
-                    att_path = Path(config["attachments_root"]) / q.attachment_filename
+                if q.attachment_filename and getattr(q, 'resolved_attachment_path', None):
+                    att_path = q.resolved_attachment_path
                     if att_path.exists():
                         print(f"Attaching: {q.attachment_filename}")
                         abs_path = str(att_path.absolute())

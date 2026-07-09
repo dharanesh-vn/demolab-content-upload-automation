@@ -9,8 +9,6 @@ env/
 ENV/
 .venv/
 
-# Environment variables
-.env
 
 # Playwright / Browser automation
 test-results/

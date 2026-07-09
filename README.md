@@ -28,10 +28,9 @@ For the script to work magically, keep your files organized.
    python main.py
    ```
 4. **The Setup Window:** A native Windows popup will appear!
-   - Enter your **Amypo Email**.
-   - Enter your **Amypo Password**.
-   - Click **Browse...** and select your Master Assignment `.docx` file.
-   - Click **Start Automation**.
+   - Simply navigate to and select your Master Assignment `.docx` file.
+
+**Note on Credentials:** Your Amypo credentials are securely stored in the `.env` file. You only need to set them once inside the `.env` file (`AMYPO_USERNAME` and `AMYPO_PASSWORD`), and the script will automatically log you in every time!
 
 5. **Terminal Questions:** Look back at your terminal. The script will ask you a few quick questions (like the Course Name, Subject Type, and Module Name). Answer them and press Enter.
 6. **OTP:** Check your WhatsApp for the Amypo OTP and enter it into the terminal when prompted.

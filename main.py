@@ -3,7 +3,8 @@ import json
 import csv
 import re
 import tkinter as tk
-from gui import get_credentials_and_file
+from tkinter import filedialog
+from dotenv import load_dotenv
 from parser import parse_docx
 from question_model import Question
 from uploader import run_uploader
@@ -24,19 +25,35 @@ def get_number_input(prompt_text):
         print("Invalid input. Please enter numbers only.")
 
 def main():
+    load_dotenv()
+    
+    # Check credentials
+    username = os.getenv("AMYPO_USERNAME")
+    password = os.getenv("AMYPO_PASSWORD")
+    if not username or not password or username == "your_email_here@example.com":
+        print("Please set your real AMYPO_USERNAME and AMYPO_PASSWORD in the .env file.")
+        return
+
     # Load config
     with open("config.json", "r") as f:
         config = json.load(f)
         
     print("\n=======================================================")
-    print("Please fill out your credentials and select the Assignment Word Document (.docx) in the popup window...")
+    print("Please select the Assignment Word Document (.docx) from the popup window...")
     print("=======================================================\n")
     
-    # 1. Unified GUI for Credentials and File Selection
-    username, password, docx_file = get_credentials_and_file()
+    # Use Tkinter to ask the user to select the file
+    root = tk.Tk()
+    root.withdraw() # Hide the main window
+    root.attributes('-topmost', True) # Bring popup to front
     
-    if not username or not password or not docx_file:
-        print("Setup cancelled or incomplete. Exiting...")
+    docx_file = filedialog.askopenfilename(
+        title="Select the Assignment Word Document (.docx)",
+        filetypes=[("Word Documents", "*.docx")]
+    )
+    
+    if not docx_file:
+        print("No file selected. Exiting...")
         return
         
     docx_path = Path(docx_file).absolute()

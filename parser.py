@@ -3,6 +3,25 @@ import re
 from docx import Document
 from typing import List, Dict
 
+def extract_rich_text(cell) -> str:
+    html = ""
+    for paragraph in cell.paragraphs:
+        p_html = ""
+        for run in paragraph.runs:
+            text = run.text
+            if not text: continue
+            
+            # Escape HTML characters to prevent breaking the editor
+            text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            
+            if run.bold: text = f"<strong>{text}</strong>"
+            if run.italic: text = f"<em>{text}</em>"
+            if run.underline: text = f"<u>{text}</u>"
+            p_html += text
+        if p_html:
+            html += f"<p>{p_html}</p>\n"
+    return html.strip()
+
 def parse_docx(file_path: str) -> List[Dict]:
     doc = Document(file_path)
     questions = []
@@ -53,7 +72,13 @@ def parse_docx(file_path: str) -> List[Dict]:
                     
                     # Strip the "Q1 — " prefix from the title using regex
                     title = re.sub(r'^Q\d+\s*[-—–]\s*', '', row1_text, flags=re.IGNORECASE)
-                    q_text = element.rows[1].cells[0].text.strip()
+                    
+                    # Extract rich text (bold, italic) instead of raw text
+                    q_text = extract_rich_text(element.rows[1].cells[0])
+                    # Fallback to plain text if HTML extraction fails for some reason
+                    if not q_text:
+                        q_text = element.rows[1].cells[0].text.strip()
+                    
                     
                     attachment_text = element.rows[2].cells[0].text.strip()
                     attachment = None

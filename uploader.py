@@ -12,12 +12,27 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
     # Prepare run log
     log_file = Path("run_log.csv")
     completed_q_nums = set()
+    current_docx_name = Path(config["docx_path"]).name
+    
+    file_exists = log_file.exists()
+    if not file_exists:
+        # Create file with headers if it doesn't exist
+        with open(log_file, "w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Document Name", "Question Number", "Status", "Timestamp", "Details"])
+            
     if log_file.exists():
         with open(log_file, "r", encoding="utf-8") as f:
             reader = csv.reader(f)
             for row in reader:
-                if len(row) >= 2 and row[1] == "success":
-                    completed_q_nums.add(int(row[0]))
+                if not row:
+                    continue
+                # New format: doc_name, question_number, status, timestamp, error
+                if len(row) >= 3 and row[0] == current_docx_name and row[2] == "success":
+                    completed_q_nums.add(int(row[1]))
+                # Legacy format fallback (no doc_name). We will assume it belongs to the current doc ONLY IF it's the exact same script session,
+                # but generally we can't trust it. To be safe and solve the module switching bug, we will ignore legacy success logs 
+                # unless they manually clear them, but we will still read them to prevent crashing.
     
     with sync_playwright() as p:
         # Run headed for manual OTP
@@ -110,13 +125,24 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
         # Wait for the configuration form to appear
         expect(page.get_by_text("Project Questions Configuration")).to_be_visible(timeout=10000)
         
+        # --- Filter out already completed questions ---
+        questions_to_upload = [q for q in questions if q.question_number not in completed_q_nums]
+        
+        if not questions_to_upload:
+            print("All questions selected have already been uploaded successfully according to the run log.")
+            print("Stopping script before making any changes or clicking save...")
+            browser.close()
+            return
+            
+        # Add a visual line breaker to the log for this new run session
+        if log_file.exists():
+            with open(log_file, "a", encoding="utf-8", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["---", "---", "---", "---", "---"])
+        
         # --- 3. Upload questions ---
         form_index = 0
-        for i, q in enumerate(questions):
-            if q.question_number in completed_q_nums:
-                print(f"Skipping Q{q.question_number} (already logged as success).")
-                continue
-                
+        for i, q in enumerate(questions_to_upload):
             print(f"Uploading Q{q.question_number}: {q.title[:30]}...")
             try:
                 # 1. Fill Title
@@ -218,10 +244,10 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 # Log success for this specific question insertion
                 with open(log_file, "a", encoding="utf-8", newline="") as f:
                     writer = csv.writer(f)
-                    writer.writerow([q.question_number, "success", time.time(), ""])
+                    writer.writerow([current_docx_name, q.question_number, "success", time.strftime("%Y-%m-%d %H:%M:%S"), ""])
                     
                 # 9. Save or Add Another
-                if i == len(questions) - 1:
+                if i == len(questions_to_upload) - 1:
                     print("Last question! Clicking Save Questions...")
                     page.locator('button', has_text='Save Questions').first.click()
                     print("Waiting for server to process the save...")
@@ -243,13 +269,19 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     
                 form_index += 1
                     
+            except KeyboardInterrupt:
+                print(f"\n🛑 Upload interrupted by user (Ctrl+C) on Q{q.question_number}!")
+                with open(log_file, "a", encoding="utf-8", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow([current_docx_name, q.question_number, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), "User interrupted (Ctrl+C)"])
+                break
             except Exception as e:
                 print(f"Failed on Q{q.question_number}: {e}")
                 Path("screenshots").mkdir(exist_ok=True)
                 page.screenshot(path=f"screenshots/failed_q{q.question_number}.png")
                 with open(log_file, "a", encoding="utf-8", newline="") as f:
                     writer = csv.writer(f)
-                    writer.writerow([q.question_number, "failed", time.time(), str(e)])
+                    writer.writerow([current_docx_name, q.question_number, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), str(e)])
                 break
                 
         browser.close()

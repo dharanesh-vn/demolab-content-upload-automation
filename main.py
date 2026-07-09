@@ -20,9 +20,9 @@ def get_letter_input(prompt_text):
 def get_number_input(prompt_text):
     while True:
         val = input(prompt_text).strip()
-        if val.isdigit():
+        if val.isdigit() and int(val) > 0:
             return val
-        print("Invalid input. Please enter numbers only.")
+        print("Invalid input. Please enter a number greater than 0.")
 
 def main():
     load_dotenv()
@@ -130,7 +130,7 @@ def main():
     difficulty = get_letter_input("Enter Difficulty Level (Case Sensitive, e.g. 'easy'): ")
     tags = get_letter_input("Enter Tags (Case Sensitive, e.g. 'Python'): ")
     language = get_letter_input("Enter Language (Case Sensitive, e.g. 'Assignment'): ")
-    actual_time = int(get_number_input("Enter Actual time in minutes (e.g. '0'): "))
+    actual_time = int(get_number_input("Enter Actual time in minutes (e.g. '30'): "))
     
     for q in validated_questions:
         q.difficulty = difficulty
@@ -214,4 +214,7 @@ def main():
     )
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n\n🛑 Script interrupted by user (Ctrl+C). Exiting gracefully...")

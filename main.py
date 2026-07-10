@@ -5,7 +5,7 @@ import re
 import tkinter as tk
 from tkinter import filedialog
 from dotenv import load_dotenv
-from parser import parse_docx
+from docx_parser import parse_docx
 from question_model import Question
 from uploader import run_uploader
 from pathlib import Path

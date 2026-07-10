@@ -157,40 +157,40 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 # 2. Select Difficulty
                 diff_input = page.locator('input.select__input').nth(form_index * 3 + 0)
                 diff_input.click(force=True)
-                page.wait_for_timeout(300)
+                page.wait_for_timeout(100)
                 diff_input.fill(q.difficulty)
                 # Wait for menu to populate, then press ArrowDown to ensure the first item is highlighted, then Enter
-                page.wait_for_timeout(1000)
-                page.keyboard.press("ArrowDown")
-                page.wait_for_timeout(200)
-                page.keyboard.press("Enter")
                 page.wait_for_timeout(300)
+                page.keyboard.press("ArrowDown")
+                page.wait_for_timeout(50)
+                page.keyboard.press("Enter")
+                page.wait_for_timeout(100)
                 if diff_input.input_value() != "":
                     raise ValueError(f"CRITICAL ERROR: Failed to select Difficulty '{q.difficulty}'. This option is not available in the website dropdown.")
                 
                 # 3. Select Tags
                 tag_input = page.locator('input.select__input').nth(form_index * 3 + 1)
                 tag_input.click(force=True)
-                page.wait_for_timeout(300)
+                page.wait_for_timeout(100)
                 tag_input.fill(q.tags)
-                page.wait_for_timeout(1000)
-                page.keyboard.press("ArrowDown")
-                page.wait_for_timeout(200)
-                page.keyboard.press("Enter")
                 page.wait_for_timeout(300)
+                page.keyboard.press("ArrowDown")
+                page.wait_for_timeout(50)
+                page.keyboard.press("Enter")
+                page.wait_for_timeout(100)
                 if tag_input.input_value() != "":
                     raise ValueError(f"CRITICAL ERROR: Failed to select Tag '{q.tags}'. This tag is not available in the website dropdown.")
                 
                 # 4. Select Language
                 lang_input = page.locator('input.select__input').nth(form_index * 3 + 2)
                 lang_input.click(force=True)
-                page.wait_for_timeout(300)
+                page.wait_for_timeout(100)
                 lang_input.fill(q.language)
-                page.wait_for_timeout(1000)
-                page.keyboard.press("ArrowDown")
-                page.wait_for_timeout(200)
-                page.keyboard.press("Enter")
                 page.wait_for_timeout(300)
+                page.keyboard.press("ArrowDown")
+                page.wait_for_timeout(50)
+                page.keyboard.press("Enter")
+                page.wait_for_timeout(100)
                 if lang_input.input_value() != "":
                     raise ValueError(f"CRITICAL ERROR: Failed to select Language '{q.language}'. This language is not available in the website dropdown.")
                 
@@ -217,7 +217,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                             fc_info.value.set_files(abs_path)
                             print(f"Successfully injected file: {q.attachment_filename}")
                             # Wait a bit longer to allow the website to process the upload to their server
-                            page.wait_for_timeout(3000)
+                            page.wait_for_timeout(1000)
                         except Exception as e:
                             print(f"Failed to attach file: {e}")
                     else:
@@ -242,7 +242,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                         if any(keyword in acceptance_str for keyword in keywords):
                             # Click the button with the exact text on the latest question form
                             page.locator(f'button:has-text("{button_text}")').last.click(timeout=2000)
-                            page.wait_for_timeout(300)
+                            page.wait_for_timeout(50)
                             
                 except Exception as e:
                     print(f"Note: Could not select file formats automatically: {e}")
@@ -272,7 +272,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 else:
                     print("Clicking Add Question...")
                     page.get_by_role("button", name="Add Question").last.click()
-                    page.wait_for_timeout(1000)
+                    page.wait_for_timeout(300)
                     
                 form_index += 1
                     

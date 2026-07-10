@@ -25,7 +25,7 @@ def explore_dom():
         page = context.new_page()
 
         print("Navigating to login page...")
-        page.goto("https://demolab.amypo.ai/login")
+        page.goto("https://dotlab.amypo.ai/login")
 
         print("Filling credentials...")
         page.fill('input[name="username"], input[type="email"], input[id="email"]', username)

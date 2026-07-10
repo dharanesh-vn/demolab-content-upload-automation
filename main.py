@@ -118,7 +118,7 @@ def main():
     subj_choice = input("Select Subject Type (0 for Academic, 1 for Programming Subjects): ").strip()
     config["subject_type"] = "academic" if subj_choice == "0" else "programming"
     
-    course_name = input("Enter Course Name (Case Sensitive, e.g. 'Assign testing demo'): ").strip()
+    course_name = input("Enter Course Name (Case Sensitive, e.g. 'Assign testing dot'): ").strip()
     if course_name:
         config["course_name"] = course_name
         
@@ -192,12 +192,21 @@ def main():
                 
     print(f"\n=====================================")
     
-    try:
-        start_q = int(input("Enter the starting question number to upload (e.g. 1): ").strip())
-        end_q = int(input(f"Enter the ending question number to upload (e.g. {len(validated_questions)}): ").strip())
-    except ValueError:
-        print("Invalid input! Please enter valid numbers.")
-        return
+    while True:
+        try:
+            start_q = int(input("Enter the starting question number to upload (e.g. 1): ").strip())
+            if start_q <= 0:
+                print("Starting question number must be 1 or greater.")
+                continue
+                
+            end_q = int(input(f"Enter the ending question number to upload (e.g. {len(validated_questions)}): ").strip())
+            if end_q < start_q:
+                print(f"Ending question number ({end_q}) cannot be less than starting question number ({start_q}).")
+                continue
+                
+            break
+        except ValueError:
+            print("Invalid input! Please enter valid integer numbers.")
 
     subset_questions = [q for q in validated_questions if start_q <= q.question_number <= end_q]
     

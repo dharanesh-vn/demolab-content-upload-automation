@@ -10,16 +10,22 @@ from question_model import Question
 from uploader import run_uploader
 from pathlib import Path
 
-def get_letter_input(prompt_text):
+def get_letter_input(prompt_text, default=""):
+    prompt = f"{prompt_text} [Default: {default}]: " if default else f"{prompt_text}: "
     while True:
-        val = input(prompt_text).strip()
+        val = input(prompt).strip()
+        if not val and default:
+            return default
         if re.match(r'^[a-zA-Z\s]+$', val):
             return val
         print("Invalid input. Please enter letters and spaces only.")
 
-def get_number_input(prompt_text):
+def get_number_input(prompt_text, default=""):
+    prompt = f"{prompt_text} [Default: {default}]: " if default else f"{prompt_text}: "
     while True:
-        val = input(prompt_text).strip()
+        val = input(prompt).strip()
+        if not val and default:
+            return str(default)
         if val.isdigit() and int(val) > 0:
             return val
         print("Invalid input. Please enter a number greater than 0.")
@@ -118,19 +124,30 @@ def main():
     subj_choice = input("Select Subject Type (0 for Academic, 1 for Programming Subjects): ").strip()
     config["subject_type"] = "academic" if subj_choice == "0" else "programming"
     
-    course_name = input("Enter Course Name (Case Sensitive, e.g. 'Assign testing dot'): ").strip()
-    if course_name:
-        config["course_name"] = course_name
+    course_default = config.get("course_name", "Assign testing dot")
+    course_name = input(f"Enter Course Name (Case Sensitive) [Default: {course_default}]: ").strip()
+    config["course_name"] = course_name if course_name else course_default
         
-    module_name = input("Enter Module Name (Case Sensitive, e.g. 'Sample 02'): ").strip()
-    if module_name:
-        config["module_name"] = module_name
+    module_default = config.get("module_name", "Sample 01")
+    module_name = input(f"Enter Module Name (Case Sensitive) [Default: {module_default}]: ").strip()
+    config["module_name"] = module_name if module_name else module_default
         
     print("\n--- Form Field Setup ---")
-    difficulty = get_letter_input("Enter Difficulty Level (Case Sensitive, e.g. 'easy'): ")
-    tags = get_letter_input("Enter Tags (Case Sensitive, e.g. 'Python'): ")
-    language = get_letter_input("Enter Language (Case Sensitive, e.g. 'Assignment'): ")
-    actual_time = int(get_number_input("Enter Actual time in minutes (e.g. '30'): "))
+    difficulty = get_letter_input("Enter Difficulty Level (Case Sensitive)", default=config.get("default_difficulty", "Easy"))
+    config["default_difficulty"] = difficulty
+    
+    tags = get_letter_input("Enter Tags (Case Sensitive)", default=config.get("default_tags", "Python"))
+    config["default_tags"] = tags
+    
+    language = get_letter_input("Enter Language (Case Sensitive)", default=config.get("language", "Assignment"))
+    config["language"] = language
+    
+    actual_time = int(get_number_input("Enter Actual time in minutes", default=config.get("default_actual_time_minutes", 30)))
+    config["default_actual_time_minutes"] = actual_time
+    
+    # Save config back so it remembers inputs for next time
+    with open("config.json", "w") as f:
+        json.dump(config, f, indent=2)
     
     for q in validated_questions:
         q.difficulty = difficulty
@@ -141,12 +158,13 @@ def main():
     csv_file = "questions_review.csv"
     print(f"\nWriting {len(validated_questions)} questions to {csv_file} for review...")
     
-    headers = ["Question Title", "Difficulty Level", "Tags", "Language", "Actual time", "Question", "Attachment name", "User Response Acceptance"]
+    headers = ["Question No.", "Question Title", "Difficulty Level", "Tags", "Language", "Actual time", "Question", "Attachment name", "User Response Acceptance"]
     with open(csv_file, "w", encoding="utf-8", newline="") as f:
-        writer = csv.writer(f)
+        writer = csv.writer(f, quoting=csv.QUOTE_ALL)
         writer.writerow(headers)
         for q in validated_questions:
             writer.writerow([
+                f"Q{q.question_number}",
                 q.title,
                 q.difficulty,
                 q.tags,
@@ -188,7 +206,7 @@ def main():
                 q.question_text = row["Question"]
                 att = row["Attachment name"].strip()
                 q.attachment_filename = att if att else None
-                q.user_response_acceptance = row["User Response Acceptance"]
+                q.user_response_acceptance = row["User Response Acceptance"].strip() if row["User Response Acceptance"].strip() else "PDF, Images"
                 
     print(f"\n=====================================")
     

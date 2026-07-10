@@ -33,7 +33,18 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 # Legacy format fallback (no doc_name). We will assume it belongs to the current doc ONLY IF it's the exact same script session,
                 # but generally we can't trust it. To be safe and solve the module switching bug, we will ignore legacy success logs 
                 # unless they manually clear them, but we will still read them to prevent crashing.
-    
+
+    # 0. Check if log file is locked by Excel
+    try:
+        if log_file.exists():
+            with open(log_file, "a", encoding="utf-8") as f:
+                pass
+    except PermissionError:
+        print(f"\n🛑 CRITICAL ERROR: The file '{log_file.name}' is currently locked (likely open in Excel).")
+        print("Please close the file and run the script again to prevent a crash during upload.")
+        return
+        
+    print("Launching browser for automated upload...")
     with sync_playwright() as p:
         # Run headed for manual OTP
         browser = p.chromium.launch(headless=False)
@@ -142,6 +153,9 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
         
         # --- 3. Upload questions ---
         form_index = 0
+        success_count = 0
+        failed_count = 0
+        
         for i, q in enumerate(questions_to_upload):
             print(f"Uploading Q{q.question_number}: {q.title[:30]}...")
             try:
@@ -246,6 +260,8 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     writer = csv.writer(f)
                     writer.writerow([current_docx_name, q.question_number, "success", time.strftime("%Y-%m-%d %H:%M:%S"), ""])
                     
+                success_count += 1
+                
                 # 9. Save or Add Another
                 if i == len(questions_to_upload) - 1:
                     print("Last question! Clicking Save Questions...")
@@ -274,6 +290,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 with open(log_file, "a", encoding="utf-8", newline="") as f:
                     writer = csv.writer(f)
                     writer.writerow([current_docx_name, q.question_number, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), "User interrupted (Ctrl+C)"])
+                failed_count += 1
                 break
             except Exception as e:
                 print(f"Failed on Q{q.question_number}: {e}")
@@ -282,6 +299,16 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 with open(log_file, "a", encoding="utf-8", newline="") as f:
                     writer = csv.writer(f)
                     writer.writerow([current_docx_name, q.question_number, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), str(e)])
+                failed_count += 1
                 break
                 
         browser.close()
+        
+        print("\n=================================")
+        print("🎉 UPLOAD COMPLETE 🎉")
+        print("=================================")
+        print(f"Module: {current_docx_name}")
+        print(f"Total Processed: {success_count + failed_count}")
+        print(f"✅ Success: {success_count}")
+        print(f"❌ Failed: {failed_count}")
+        print("=================================\n")

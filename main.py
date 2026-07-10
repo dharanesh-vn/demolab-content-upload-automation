@@ -10,22 +10,16 @@ from question_model import Question
 from uploader import run_uploader
 from pathlib import Path
 
-def get_letter_input(prompt_text, default=""):
-    prompt = f"{prompt_text} [Default: {default}]: " if default else f"{prompt_text}: "
+def get_letter_input(prompt_text):
     while True:
-        val = input(prompt).strip()
-        if not val and default:
-            return default
-        if re.match(r'^[a-zA-Z\s]+$', val):
+        val = input(prompt_text).strip()
+        if re.match(r'^[a-zA-Z\s,]+$', val):
             return val
-        print("Invalid input. Please enter letters and spaces only.")
+        print("Invalid input. Please enter letters, spaces, and commas only.")
 
-def get_number_input(prompt_text, default=""):
-    prompt = f"{prompt_text} [Default: {default}]: " if default else f"{prompt_text}: "
+def get_number_input(prompt_text):
     while True:
-        val = input(prompt).strip()
-        if not val and default:
-            return str(default)
+        val = input(prompt_text).strip()
         if val.isdigit() and int(val) > 0:
             return val
         print("Invalid input. Please enter a number greater than 0.")
@@ -101,9 +95,16 @@ def main():
             # We search the entire project folder recursively for the filename
             matched_files = list(project_folder.rglob(q.attachment_filename))
             if not matched_files:
-                print(f"CRITICAL ERROR: Missing attachment file for Q{q.question_number}: {q.attachment_filename}")
+                print(f"\n[WARNING] Could not find attachment '{q.attachment_filename}' for Q{q.question_number}!")
                 print(f"I searched the entire directory: {project_folder}")
-                return
+                while True:
+                    ans = input("Do you want to proceed and upload this question WITHOUT the attachment? (Y/N): ").strip().upper()
+                    if ans == 'Y':
+                        q.attachment_filename = None
+                        break
+                    elif ans == 'N':
+                        print("Exiting so you can fix the missing attachment.")
+                        return
             else:
                 # Add the resolved absolute path to the question object temporarily for the uploader
                 q.resolved_attachment_path = matched_files[0]
@@ -116,7 +117,7 @@ def main():
     print(f"Total Questions Extracted: {len(validated_questions)}")
     print(f"=====================================")
     for q in validated_questions:
-        att_status = f"📎 {q.attachment_filename}" if q.attachment_filename else "No Attachment"
+        att_status = f"[Attachment] {q.attachment_filename}" if q.attachment_filename else "No Attachment"
         print(f"Q{q.question_number}: {q.title[:40]:<42} | {att_status}")
     print(f"=====================================\n")
     
@@ -124,30 +125,22 @@ def main():
     subj_choice = input("Select Subject Type (0 for Academic, 1 for Programming Subjects): ").strip()
     config["subject_type"] = "academic" if subj_choice == "0" else "programming"
     
-    course_default = config.get("course_name", "Assign testing dot")
-    course_name = input(f"Enter Course Name (Case Sensitive) [Default: {course_default}]: ").strip()
-    config["course_name"] = course_name if course_name else course_default
+    course_name = input("Enter Course Name (Case Sensitive, e.g. 'Assign testing dot'): ").strip()
+    if course_name:
+        config["course_name"] = course_name
         
-    module_default = config.get("module_name", "Sample 01")
-    module_name = input(f"Enter Module Name (Case Sensitive) [Default: {module_default}]: ").strip()
-    config["module_name"] = module_name if module_name else module_default
+    module_name = input("Enter Module Name (Case Sensitive, e.g. 'Sample 02'): ").strip()
+    if module_name:
+        config["module_name"] = module_name
         
     print("\n--- Form Field Setup ---")
-    difficulty = get_letter_input("Enter Difficulty Level (Case Sensitive)", default=config.get("default_difficulty", "Easy"))
-    config["default_difficulty"] = difficulty
+    tags_raw = input("Enter Tags (e.g. 'Python'): ").strip()
+    tags = ", ".join([t.strip() for t in tags_raw.split(",") if t.strip()]) if tags_raw else ""
     
-    tags = get_letter_input("Enter Tags (Case Sensitive)", default=config.get("default_tags", "Python"))
-    config["default_tags"] = tags
-    
-    language = get_letter_input("Enter Language (Case Sensitive)", default=config.get("language", "Assignment"))
-    config["language"] = language
-    
-    actual_time = int(get_number_input("Enter Actual time in minutes", default=config.get("default_actual_time_minutes", 30)))
-    config["default_actual_time_minutes"] = actual_time
-    
-    # Save config back so it remembers inputs for next time
-    with open("config.json", "w") as f:
-        json.dump(config, f, indent=2)
+    # Constant values
+    difficulty = "Medium"
+    language = "Assignment"
+    actual_time = 30
     
     for q in validated_questions:
         q.difficulty = difficulty
@@ -244,4 +237,6 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\n🛑 Script interrupted by user (Ctrl+C). Exiting gracefully...")
+        import sys
+        print("\n\n[INTERRUPTED] Script interrupted by user (Ctrl+C). Exiting gracefully...")
+        sys.exit(0)

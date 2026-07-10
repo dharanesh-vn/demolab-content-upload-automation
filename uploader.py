@@ -8,7 +8,12 @@ from playwright.sync_api import sync_playwright, expect
 from question_model import Question
 from typing import List
 
+import time
+
 def run_uploader(questions: List[Question], config: dict, credentials: dict):
+    success_count = 0
+    fail_count = 0
+    start_time = time.time()
     # Prepare run log
     log_file = Path("run_log.csv")
     completed_q_nums = set()
@@ -33,18 +38,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 # Legacy format fallback (no doc_name). We will assume it belongs to the current doc ONLY IF it's the exact same script session,
                 # but generally we can't trust it. To be safe and solve the module switching bug, we will ignore legacy success logs 
                 # unless they manually clear them, but we will still read them to prevent crashing.
-
-    # 0. Check if log file is locked by Excel
-    try:
-        if log_file.exists():
-            with open(log_file, "a", encoding="utf-8") as f:
-                pass
-    except PermissionError:
-        print(f"\n🛑 CRITICAL ERROR: The file '{log_file.name}' is currently locked (likely open in Excel).")
-        print("Please close the file and run the script again to prevent a crash during upload.")
-        return
-        
-    print("Launching browser for automated upload...")
+    
     with sync_playwright() as p:
         # Run headed for manual OTP
         browser = p.chromium.launch(headless=False)
@@ -122,7 +116,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
         try:
             module_loc.click(timeout=5000)
         except Exception:
-            print(f"\n❌ ERROR: Could not find Module '{module}'.")
+            print(f"\n[ERROR] Could not find Module '{module}'.")
             print("Please check your spelling and capitalization, then run again.")
             browser.close()
             return
@@ -135,6 +129,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
         page.wait_for_timeout(2000)
         # Wait for the configuration form to appear
         expect(page.get_by_text("Project Questions Configuration")).to_be_visible(timeout=10000)
+        page.wait_for_load_state("networkidle")
         
         # --- Filter out already completed questions ---
         questions_to_upload = [q for q in questions if q.question_number not in completed_q_nums]
@@ -153,9 +148,6 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
         
         # --- 3. Upload questions ---
         form_index = 0
-        success_count = 0
-        failed_count = 0
-        
         for i, q in enumerate(questions_to_upload):
             print(f"Uploading Q{q.question_number}: {q.title[:30]}...")
             try:
@@ -256,12 +248,11 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     print(f"Note: Could not select file formats automatically: {e}")
                 
                 # Log success for this specific question insertion
+                success_count += 1
                 with open(log_file, "a", encoding="utf-8", newline="") as f:
                     writer = csv.writer(f)
                     writer.writerow([current_docx_name, q.question_number, "success", time.strftime("%Y-%m-%d %H:%M:%S"), ""])
                     
-                success_count += 1
-                
                 # 9. Save or Add Another
                 if i == len(questions_to_upload) - 1:
                     print("Last question! Clicking Save Questions...")
@@ -273,9 +264,9 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     try:
                         # Wait up to 15 seconds for the modal/save button to disappear
                         page.locator('button', has_text='Save Questions').first.wait_for(state='hidden', timeout=15000)
-                        print("✅ SUCCESS: Upload process completed successfully and questions were saved!")
+                        print("[SUCCESS] Upload process completed successfully and questions were saved!")
                     except Exception:
-                        print(f"\n❌ CRITICAL ERROR SAVING: The website rejected the save (or is taking too long)!")
+                        print(f"\n[CRITICAL ERROR] SAVING: The website rejected the save (or is taking too long)!")
                         print("The 'Save Questions' button is still visible, which means the popup did not close.")
                         print("Please check the browser window for any red error messages on the form fields.")
                 else:
@@ -286,29 +277,28 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 form_index += 1
                     
             except KeyboardInterrupt:
-                print(f"\n🛑 Upload interrupted by user (Ctrl+C) on Q{q.question_number}!")
+                print(f"\n[INTERRUPTED] Upload interrupted by user (Ctrl+C) on Q{q.question_number}!")
+                fail_count += 1
                 with open(log_file, "a", encoding="utf-8", newline="") as f:
                     writer = csv.writer(f)
                     writer.writerow([current_docx_name, q.question_number, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), "User interrupted (Ctrl+C)"])
-                failed_count += 1
                 break
             except Exception as e:
                 print(f"Failed on Q{q.question_number}: {e}")
+                fail_count += 1
                 Path("screenshots").mkdir(exist_ok=True)
                 page.screenshot(path=f"screenshots/failed_q{q.question_number}.png")
                 with open(log_file, "a", encoding="utf-8", newline="") as f:
                     writer = csv.writer(f)
                     writer.writerow([current_docx_name, q.question_number, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), str(e)])
-                failed_count += 1
                 break
                 
+        elapsed = int((time.time() - start_time) / 60)
+        print(f"\n=================================")
+        print(f"UPLOAD COMPLETE")
+        print(f"=================================")
+        print(f"Success: {success_count}")
+        print(f"Failed: {fail_count}")
+        print(f"Time Taken: {elapsed} mins")
+        print(f"=================================\n")
         browser.close()
-        
-        print("\n=================================")
-        print("🎉 UPLOAD COMPLETE 🎉")
-        print("=================================")
-        print(f"Module: {current_docx_name}")
-        print(f"Total Processed: {success_count + failed_count}")
-        print(f"✅ Success: {success_count}")
-        print(f"❌ Failed: {failed_count}")
-        print("=================================\n")

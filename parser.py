@@ -19,7 +19,7 @@ def extract_rich_text(cell) -> str:
             if run.underline: text = f"<u>{text}</u>"
             p_html += text
         if p_html:
-            html += f"<p>{p_html}</p>\n"
+            html += f"{p_html}\n\n"
     return html.strip()
 
 def parse_docx(file_path: str) -> List[Dict]:

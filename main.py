@@ -77,6 +77,7 @@ def main():
     
     for q_dict in raw_questions:
         q = Question(
+            absolute_index=q_dict["absolute_index"],
             question_number=q_dict["question_number"],
             title=q_dict["title"],
             question_text=q_dict["question_text"],
@@ -134,8 +135,14 @@ def main():
         config["module_name"] = module_name
         
     print("\n--- Form Field Setup ---")
-    tags_raw = input("Enter Tags (e.g. 'Python'): ").strip()
-    tags = ", ".join([t.strip() for t in tags_raw.split(",") if t.strip()]) if tags_raw else ""
+    bulk_mode = input("Is this a Bulk Multi-Module Upload with dynamic tags? (Y/N): ").strip().upper()
+    if bulk_mode == 'Y':
+        q_per_mod = int(get_number_input("Questions per module (e.g. 60): "))
+        base_tag = input("Enter Base Tag prefix (e.g. 'module '): ")
+        tags = ""
+    else:
+        tags_raw = input("Enter Tags (e.g. 'Python'): ").strip()
+        tags = ", ".join([t.strip() for t in tags_raw.split(",") if t.strip()]) if tags_raw else ""
     
     # Constant values
     difficulty = "Medium"
@@ -144,7 +151,11 @@ def main():
     
     for q in validated_questions:
         q.difficulty = difficulty
-        q.tags = tags
+        if bulk_mode == 'Y':
+            mod_num = ((q.absolute_index - 1) // q_per_mod) + 1
+            q.tags = f"{base_tag}{mod_num}".strip()
+        else:
+            q.tags = tags
         q.language = language
         q.actual_time_minutes = actual_time
         
@@ -182,53 +193,59 @@ def main():
         elif proceed == "1":
             break
             
-    print(f"\nReading updated data from {csv_file}...")
-    with open(csv_file, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for i, row in enumerate(reader):
-            if i < len(validated_questions):
-                q = validated_questions[i]
-                q.title = row["Question Title"]
-                q.difficulty = row["Difficulty Level"]
-                q.tags = row["Tags"]
-                q.language = row["Language"]
-                try:
-                    q.actual_time_minutes = int(row["Actual time"])
-                except ValueError:
-                    q.actual_time_minutes = 0
-                q.question_text = row["Question"]
-                att = row["Attachment name"].strip()
-                q.attachment_filename = att if att else None
-                q.user_response_acceptance = row["User Response Acceptance"].strip() if row["User Response Acceptance"].strip() else "PDF, Images"
+    while True:
+        try:
+            print(f"\nReading updated data from {csv_file}...")
+            with open(csv_file, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for i, row in enumerate(reader):
+                    if i < len(validated_questions):
+                        q = validated_questions[i]
+                        q.title = row["Question Title"]
+                        q.difficulty = row["Difficulty Level"]
+                        q.tags = row["Tags"]
+                        q.language = row["Language"]
+                        try:
+                            q.actual_time_minutes = int(row["Actual time"])
+                        except ValueError:
+                            q.actual_time_minutes = 0
+                        q.question_text = row["Question"]
+                        att = row["Attachment name"].strip()
+                        q.attachment_filename = att if att else None
+                        q.user_response_acceptance = row["User Response Acceptance"].strip() if row["User Response Acceptance"].strip() else "PDF, Images"
+            break # Exit the loop if file was read successfully
+        except PermissionError:
+            print(f"\n[ERROR] '{csv_file}' is currently locked by another program (like Excel).")
+            input("Please close the file in Excel and press Enter to try reading it again...")
                 
     print(f"\n=====================================")
     
     while True:
         try:
-            start_q = int(input("Enter the starting question number to upload (e.g. 1): ").strip())
+            start_q = int(input("Enter the starting Absolute Index number to upload (e.g. 1): ").strip())
             if start_q <= 0:
-                print("Starting question number must be 1 or greater.")
+                print("Starting number must be 1 or greater.")
                 continue
                 
-            end_q = int(input(f"Enter the ending question number to upload (e.g. {len(validated_questions)}): ").strip())
+            end_q = int(input(f"Enter the ending Absolute Index number to upload (e.g. {len(validated_questions)}): ").strip())
             if end_q < start_q:
-                print(f"Ending question number ({end_q}) cannot be less than starting question number ({start_q}).")
+                print(f"Ending number ({end_q}) cannot be less than starting number ({start_q}).")
                 continue
                 
             break
         except ValueError:
             print("Invalid input! Please enter valid integer numbers.")
 
-    subset_questions = [q for q in validated_questions if start_q <= q.question_number <= end_q]
+    questions_to_upload = [q for q in validated_questions if start_q <= q.absolute_index <= end_q]
     
-    if not subset_questions:
+    if not questions_to_upload:
         print("No questions found in that range!")
         return
 
-    print(f"\nStarting uploader for {len(subset_questions)} questions (Q{start_q} to Q{end_q})...")
+    print(f"\nStarting uploader for {len(questions_to_upload)} questions (Q{start_q} to Q{end_q})...")
     
     run_uploader(
-        questions=subset_questions,
+        questions=questions_to_upload,
         config=config,
         credentials={"username": username, "password": password}
     )

@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 class Question(BaseModel):
+    absolute_index: int
     question_number: int
     title: str = Field(min_length=1)
     question_text: str = Field(min_length=1)

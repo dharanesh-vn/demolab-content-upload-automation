@@ -138,5 +138,7 @@ def parse_docx(file_path: str) -> List[Dict]:
                         "user_response_acceptance": "PDF, Images",
                         "tags": current_section_tag
                     })
-    
+    for i, q in enumerate(questions):
+        q["absolute_index"] = i + 1
+        
     return questions

@@ -8,7 +8,7 @@ venv/
 env/
 ENV/
 .venv/
-
+.env
 
 # Playwright / Browser automation
 test-results/

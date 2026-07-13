@@ -30,7 +30,7 @@ For the script to work magically, keep your files organized.
 4. **The Setup Window:** A native Windows popup will appear!
    - Simply navigate to and select your Master Assignment `.docx` file.
 
-**Note on Credentials:** Your Amypo credentials are securely stored in the `.env` file. You only need to set them once inside the `.env` file (`AMYPO_USERNAME` and `AMYPO_PASSWORD`), and the script will automatically log you in every time!
+**Note on Credentials:** Your Amypo credentials are securely stored in the `.env` file. When you first clone the repository, copy the `.env.example` file and rename it to `.env`. Then, enter your `AMYPO_USERNAME` and `AMYPO_PASSWORD`. You only need to set them once, and the script will automatically log you in every time!
 
 5. **Terminal Setup:** The script will ask you if this is a **Bulk Multi-Module Upload** (Y/N).
    - If **Y**: You define the questions per module (e.g. 60) and the prefix (e.g. 'module '). The script will magically tag the first 60 questions as `module 1`, the next 60 as `module 2`, etc.
@@ -43,8 +43,8 @@ Once the OTP is entered, the **Invisible Headless Browser** will take over!
 You will not see a browser window open. It runs completely silently in the background at maximum speed, bypassing visual rendering to drastically increase processing times. When it finishes, it will print a beautiful summary with exact minutes and seconds taken!
 
 ## Advanced Safety Features
-- **Atomic Saving:** The script tracks progress intelligently. If you hit `Ctrl+C` to abort mid-batch, it will not corrupt your log file. It only marks questions as 'Success' if the Amypo server actually accepts the batch save.
-- **Network Resistance:** If the website stutters or drops your connection while filling out a massive form, the script will automatically retry uploading the question up to 3 times before failing!
+- **Turbo Batch Chunking:** To handle massive 300+ question uploads without crashing your browser, the script breaks the workload into 30-question batches. It automatically navigates, saves, and refreshes the DOM to keep memory usage low and execution speed blazing fast!
+- **Atomic Saving & Network Resistance:** The script tracks progress intelligently. If you hit `Ctrl+C` to abort mid-batch, or if the server crashes under heavy load, it safely logs the exact batch failure and aborts. It gives the server up to 60 seconds to process saves to survive network lag.
 
 ## Troubleshooting
 - **Missing Attachments Warning?** If the script can't find an attachment mentioned in your Word Document (e.g., due to a typo), it will pause and print a Yellow Warning. You can press `Y` to upload the question anyway *without* the attachment, or `N` to abort and fix the file.

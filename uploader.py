@@ -13,6 +13,7 @@ import time
 def run_uploader(questions: List[Question], config: dict, credentials: dict):
     success_count = 0
     fail_count = 0
+    failed_questions_list = []
     start_time = time.time()
     # Prepare run log
     log_file = Path("run_log.csv")
@@ -90,11 +91,16 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 writer.writerow(["---", "---", "---", "---", "---"])
         
 
-        chunk_size = 30
-        for chunk_start in range(0, len(questions_to_upload), chunk_size):
-            chunk = questions_to_upload[chunk_start:chunk_start + chunk_size]
+        questions_queue = questions_to_upload.copy()
+        current_chunk_size = 30
+        
+        while questions_queue:
+            chunk = questions_queue[:current_chunk_size]
             print(f"\n=====================================")
-            print(f"Processing Batch: Questions {chunk_start + 1} to {min(chunk_start + chunk_size, len(questions_to_upload))} of {len(questions_to_upload)}")
+            if current_chunk_size == 1:
+                print(f"*** ISOLATION MODE *** Testing Q{chunk[0].absolute_index} individually.")
+            else:
+                print(f"Processing Batch: Questions {chunk[0].absolute_index} to {chunk[-1].absolute_index} (Batch size: {len(chunk)})")
             print(f"=====================================\n")
             
             print("Login successful! Navigating to Question Bank...")
@@ -134,7 +140,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 print("It may have been renamed by someone else mid-upload!")
                 with open(log_file, "a", encoding="utf-8", newline="") as f:
                     writer = csv.writer(f)
-                    for q in questions_to_upload[chunk_start:]:
+                    for q in questions_queue:
                         writer.writerow([current_docx_name, q.absolute_index, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), f"Course '{course}' missing"])
                 browser.close()
                 return
@@ -150,7 +156,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 print("It may have been renamed by someone else mid-upload!")
                 with open(log_file, "a", encoding="utf-8", newline="") as f:
                     writer = csv.writer(f)
-                    for q in questions_to_upload[chunk_start:]:
+                    for q in questions_queue:
                         writer.writerow([current_docx_name, q.absolute_index, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), f"Module '{module}' missing"])
                 browser.close()
                 return
@@ -168,6 +174,9 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
 
             form_index = 0
             pending_success = []
+            batch_success = True
+            batch_error_reason = ""
+            
             for i, q in enumerate(chunk):
                 print(f"Uploading [Absolute #{q.absolute_index} | Internal Q{q.question_number}]: {q.title[:30]}...")
                 try:
@@ -179,14 +188,13 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     diff_input.click(force=True)
                     page.wait_for_timeout(100)
                     diff_input.fill(q.difficulty)
-                    # Wait for menu to populate, then press ArrowDown to ensure the first item is highlighted, then Enter
                     page.wait_for_timeout(300)
                     page.keyboard.press("ArrowDown")
                     page.wait_for_timeout(50)
                     page.keyboard.press("Enter")
                     page.wait_for_timeout(100)
                     if diff_input.input_value() != "":
-                        raise ValueError(f"CRITICAL ERROR: Failed to select Difficulty '{q.difficulty}'. This option is not available in the website dropdown.")
+                        raise ValueError(f"Failed to select Difficulty '{q.difficulty}'.")
                 
                     # 3. Select Tags
                     tag_input = page.locator('input.select__input').nth(form_index * 3 + 1)
@@ -199,7 +207,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     page.keyboard.press("Enter")
                     page.wait_for_timeout(100)
                     if tag_input.input_value() != "":
-                        raise ValueError(f"CRITICAL ERROR: Failed to select Tag '{q.tags}'. This tag is not available in the website dropdown.")
+                        raise ValueError(f"Failed to select Tag '{q.tags}'.")
                 
                     # 4. Select Language
                     lang_input = page.locator('input.select__input').nth(form_index * 3 + 2)
@@ -212,7 +220,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     page.keyboard.press("Enter")
                     page.wait_for_timeout(100)
                     if lang_input.input_value() != "":
-                        raise ValueError(f"CRITICAL ERROR: Failed to select Language '{q.language}'. This language is not available in the website dropdown.")
+                        raise ValueError(f"Failed to select Language '{q.language}'.")
                 
                     # 5. Actual time
                     page.locator('input[name="actualTime"]').nth(form_index).fill(str(q.actual_time_minutes))
@@ -228,26 +236,20 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                             print(f"Attaching: {q.attachment_filename}")
                             abs_path = str(att_path.absolute())
                             try:
-                                # Using set_input_files breaks React state mapping, so we must physically click the dropzone.
-                                # Since button counts vary between Academic and Programming subjects, we use XPath 
-                                # to find the specific 'Click to upload' button immediately following THIS question's 'Assignment Attachments' label.
                                 xpath = f"(//*[contains(text(), 'Assignment Attachments')])[{form_index + 1}]/following::*[contains(text(), 'Click to upload')][1]"
                                 with page.expect_file_chooser() as fc_info:
                                     page.locator(xpath).click(force=True)
                                 fc_info.value.set_files(abs_path)
                                 print(f"Successfully injected file: {q.attachment_filename}")
-                                # Wait a bit longer to allow the website to process the upload to their server
                                 page.wait_for_timeout(1000)
                             except Exception as e:
                                 print(f"Failed to attach file: {e}")
                         else:
                             print(f"WARNING: Attachment missing: {att_path}")
                         
-                    # 8. User Response Acceptance (PDF, Images, Word, ZIP, etc.)
+                    # 8. User Response Acceptance
                     try:
                         acceptance_str = str(q.user_response_acceptance).lower()
-                    
-                        # Map keywords from the CSV to the exact button text on the website
                         format_map = {
                             "Word": ["word", "doc", "docx"],
                             "PDF": ["pdf"],
@@ -256,18 +258,13 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                             "ODS / ODT": ["ods", "odt"],
                             "Video": ["video", "mp4", "avi"]
                         }
-                    
-                        # Check which buttons to click based on the keywords
                         for button_text, keywords in format_map.items():
                             if any(keyword in acceptance_str for keyword in keywords):
-                                # Click the button with the exact text on the latest question form
                                 page.locator(f'button:has-text("{button_text}")').last.click(timeout=2000)
                                 page.wait_for_timeout(50)
-                            
                     except Exception as e:
-                        print(f"Note: Could not select file formats automatically: {e}")
+                        pass
                 
-                    # Stage success for this specific question insertion
                     pending_success.append(q)
                 
                     # 9. Save or Add Another
@@ -277,13 +274,10 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                         print("Waiting for server to process the save...")
                         page.wait_for_timeout(2000)
                     
-                        # Verify if the save was actually successful by checking if the modal closes
                         try:
-                            # Wait up to 60 seconds for the modal/save button to disappear (bulk saves can take longer on the server)
                             page.locator('button', has_text='Save Questions').first.wait_for(state='hidden', timeout=60000)
                             print("[SUCCESS] Upload process completed successfully and questions were saved!")
                         
-                            # Now that the server actually saved them, commit them to the log!
                             success_count += len(pending_success)
                             with open(log_file, "a", encoding="utf-8", newline="") as f:
                                 writer = csv.writer(f)
@@ -292,9 +286,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                                 
                         except Exception as save_err:
                             print(f"\n[CRITICAL ERROR] SAVING: The website rejected the save (or is taking too long)!")
-                            print("The 'Save Questions' button is still visible, which means the popup did not close.")
                             
-                            # Scrape any visible toasts or text to give a better error reason!
                             error_reason = "Save operation timed out or was rejected"
                             try:
                                 toasts = page.locator('.Toastify__toast, .toast, .alert, .swal-modal, .modal-content').all_inner_texts()
@@ -308,14 +300,8 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                                 pass
                                 
                             print(f"Reason: {error_reason}")
-                            
-                            fail_count += len(pending_success)
-                            with open(log_file, "a", encoding="utf-8", newline="") as f:
-                                writer = csv.writer(f)
-                                for failed_q in pending_success:
-                                    writer.writerow([current_docx_name, failed_q.absolute_index, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), error_reason])
-                            
-                            # Use break instead of raise to smoothly trigger the outer loop abort logic without double-logging the final question
+                            batch_success = False
+                            batch_error_reason = error_reason
                             break
                     else:
                         print("Clicking Add Question...")
@@ -330,21 +316,44 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     with open(log_file, "a", encoding="utf-8", newline="") as f:
                         writer = csv.writer(f)
                         writer.writerow([current_docx_name, q.absolute_index, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), "User interrupted (Ctrl+C)"])
-                    break
+                    print("\n[ABORT] Stopping all remaining batches due to user interrupt.")
+                    browser.close()
+                    return
                 except Exception as e:
                     print(f"Failed on [Absolute #{q.absolute_index} | Internal Q{q.question_number}]: {e}")
-                    fail_count += 1
+                    batch_success = False
+                    batch_error_reason = str(e)
                     Path("screenshots").mkdir(exist_ok=True)
                     page.screenshot(path=f"screenshots/failed_abs{q.absolute_index}_q{q.question_number}.png")
+                    break
+
+            # Handle the result of the chunk upload
+            if batch_success:
+                # Successfully saved chunk, remove from queue
+                questions_queue = questions_queue[len(chunk):]
+                # Reset chunk size in case it was isolated
+                current_chunk_size = 30
+            else:
+                if current_chunk_size > 1:
+                    print(f"\n[ISOLATION MODE ENGAGED] The batch of {len(chunk)} questions failed.")
+                    print("Retrying this exact batch one-by-one to find the bad question...")
+                    current_chunk_size = 1
+                else:
+                    # We were already in isolation mode (chunk size 1), so THIS is the bad question!
+                    bad_q = chunk[0]
+                    print(f"\n[BAD QUESTION DISCARDED] Q{bad_q.absolute_index} has been permanently discarded. Reason: {batch_error_reason}")
+                    fail_count += 1
+                    failed_questions_list.append(bad_q.absolute_index)
                     with open(log_file, "a", encoding="utf-8", newline="") as f:
                         writer = csv.writer(f)
-                        writer.writerow([current_docx_name, q.absolute_index, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), str(e)])
-                    break
-            
-            if fail_count > 0:
-                print("\n[ABORT] Stopping remaining batches due to a failure or interrupt.")
-                break
-
+                        writer.writerow([current_docx_name, bad_q.absolute_index, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), batch_error_reason])
+                    
+                    # Remove the bad question from the queue
+                    questions_queue.pop(0)
+                    
+                    # Return to turbo speed for the rest of the queue
+                    print("Resuming turbo speed (30) for remaining questions...")
+                    current_chunk_size = 30
         total_seconds = int(time.time() - start_time)
         mins, secs = divmod(total_seconds, 60)
         time_str = f"{mins} mins {secs} secs" if mins > 0 else f"{secs} secs"
@@ -354,6 +363,8 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
         print(f"=================================")
         print(f"Success: {success_count}")
         print(f"Failed: {fail_count}")
+        if fail_count > 0:
+            print(f"Failed Question Numbers: {failed_questions_list}")
         print(f"Time Taken: {time_str}")
         print(f"=================================\n")
         browser.close()

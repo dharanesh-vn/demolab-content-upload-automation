@@ -40,8 +40,8 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 # unless they manually clear them, but we will still read them to prevent crashing.
     
     with sync_playwright() as p:
-        # Run headless (invisible) for maximum speed and zero visual clutter
-        browser = p.chromium.launch(headless=True)
+        # Run visible (headless=False) so we can see why the login is failing or hanging
+        browser = p.chromium.launch(headless=False)
         context = browser.new_context()
         page = context.new_page()
         
@@ -56,12 +56,16 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
         page.fill('input[name="password"], input[type="password"]', credentials["password"])
         page.click('button:has-text("Login"), button[type="submit"]')
         
-        print("Waiting for OTP input screen to render...")
+        print("Waiting for OTP input screen to render (this may take a few seconds)...", flush=True)
         timeout = config.get("otp_wait_timeout_ms", 120000)
         page.wait_for_selector('input[inputmode="numeric"]', timeout=timeout)
         
-        # Prompt for OTP in the terminal
-        otp = input("Enter the 6-digit OTP here: ").strip()
+        # Prompt for OTP in the terminal safely
+        print("\n====================================", flush=True)
+        print("OTP SCREEN DETECTED!", flush=True)
+        print("Please check your email/phone.", flush=True)
+        print("Enter the 6-digit OTP here:", flush=True)
+        otp = input("> ").strip()
         
         # Type the OTP into the browser
         print("Submitting OTP...")

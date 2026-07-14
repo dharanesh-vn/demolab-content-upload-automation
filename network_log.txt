@@ -1,0 +1,168 @@
+
+[POST] https://1102amy21.amypo.ai/api/new-login
+Headers: {'sec-ch-ua-platform': '"Windows"', 'authorization': 'Bearer', 'referer': 'https://demolab.amypo.ai/', 'sec-ch-ua': '"Chromium";v="149", "Not)A;Brand";v="24"', 'sec-ch-ua-mobile': '?0', 'x-client-key': '9f3a7c1d5e8b2a6f4c0d7e1b9a3f6c8d2e5a7b1c4d9f0e6a3b8c2d5f7a1e9c0', 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36', 'accept': 'application/json, text/plain, */*', 'content-type': 'multipart/form-data; boundary=----WebKitFormBoundaryZhzNfDZV781a6W9n'}
+Payload Snippet: ------WebKitFormBoundaryZhzNfDZV781a6W9n
+Content-Disposition: form-data; name="email"
+
+sanjaykumar113r@gmail.com
+------WebKitFormBoundaryZhzNfDZV781a6W9n
+Content-Disposition: form-data; name="password"
+
+Dev.amypo@123
+------WebKitFormBoundaryZhzNfDZV781a6W9n
+Content-Disposition: form-data; name="meta_data[browser]"
+
+Chrome 149.0.0.0
+------WebKitFormBoundaryZhzNfDZV781a6W9n
+Content-Disposition: form-data; name="meta_data[os]"
+
+Windows 10.0 Win32
+------WebKitFormBoundaryZhzNfDZV781a
+Response JSON: {'message': 'Credentials verified. Please choose OTP delivery method.', 'status': 200, 'user_id': 10948, 'contact_hint': 7373773500, 'channels': [{'id': 1, 'label': 'WhatsApp'}, {'id': 2, 'label': 'SMS'}]}
+--------------------------------------------------
+
+[POST] https://1102amy21.amypo.ai/api/new-send-otp
+Headers: {'sec-ch-ua-platform': '"Windows"', 'authorization': 'Bearer', 'referer': 'https://demolab.amypo.ai/', 'sec-ch-ua': '"Chromium";v="149", "Not)A;Brand";v="24"', 'sec-ch-ua-mobile': '?0', 'x-client-key': '9f3a7c1d5e8b2a6f4c0d7e1b9a3f6c8d2e5a7b1c4d9f0e6a3b8c2d5f7a1e9c0', 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36', 'accept': 'application/json, text/plain, */*', 'content-type': 'multipart/form-data; boundary=----WebKitFormBoundaryTKADjwGFvVtFnTfq'}
+Payload Snippet: ------WebKitFormBoundaryTKADjwGFvVtFnTfq
+Content-Disposition: form-data; name="user_id"
+
+10948
+------WebKitFormBoundaryTKADjwGFvVtFnTfq
+Content-Disposition: form-data; name="channel"
+
+1
+------WebKitFormBoundaryTKADjwGFvVtFnTfq--
+
+Response JSON: {'message': 'OTP sent successfully via WhatsApp', 'status': 200, 'channel': 1, 'expires_in': 300}
+--------------------------------------------------
+
+[POST] https://1102amy21.amypo.ai/api/new-verify-otp
+Headers: {'sec-ch-ua-platform': '"Windows"', 'authorization': 'Bearer', 'referer': 'https://demolab.amypo.ai/', 'sec-ch-ua': '"Chromium";v="149", "Not)A;Brand";v="24"', 'sec-ch-ua-mobile': '?0', 'x-client-key': '9f3a7c1d5e8b2a6f4c0d7e1b9a3f6c8d2e5a7b1c4d9f0e6a3b8c2d5f7a1e9c0', 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36', 'accept': 'application/json, text/plain, */*', 'content-type': 'multipart/form-data; boundary=----WebKitFormBoundary8evJ2LD1pfcYZ8qZ'}
+Payload Snippet: ------WebKitFormBoundary8evJ2LD1pfcYZ8qZ
+Content-Disposition: form-data; name="user_id"
+
+10948
+------WebKitFormBoundary8evJ2LD1pfcYZ8qZ
+Content-Disposition: form-data; name="otp"
+
+693863
+------WebKitFormBoundary8evJ2LD1pfcYZ8qZ
+Content-Disposition: form-data; name="contact_number"
+
+
+------WebKitFormBoundary8evJ2LD1pfcYZ8qZ--
+
+Response JSON: {'message': 'Login successful', 'token': '372883|UlNNvdt49b84PeRDOIJfexaOuEi1Laf8CWzvGcTF75cc8144', 'user': {'id': 10948, 'role': 6, 'name': 'Sanjay K', 'email': 'sanjaykumar113r@gmail.com', 'contact_number': 7373773500, 'roll_no': None, 'gender': None, 'access': ['6', '24', '25', '26', '27', '28', '31', '12', '13', '11', '35', '10', '14', '9', '34'], 'permission': ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'], 'dob': None, 'is_profile_updated': True, 'college_id': None, 'department_id': None, 'batch_id': None, 'section_id': None, 'isGloabalPlatformLinked': True}}
+--------------------------------------------------
+
+[POST] https://1102amy21.amypo.ai/api/new-login
+Headers: {'sec-ch-ua-platform': '"Windows"', 'authorization': 'Bearer', 'referer': 'https://demolab.amypo.ai/', 'sec-ch-ua': '"Chromium";v="149", "Not)A;Brand";v="24"', 'sec-ch-ua-mobile': '?0', 'x-client-key': '9f3a7c1d5e8b2a6f4c0d7e1b9a3f6c8d2e5a7b1c4d9f0e6a3b8c2d5f7a1e9c0', 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36', 'accept': 'application/json, text/plain, */*', 'content-type': 'multipart/form-data; boundary=----WebKitFormBoundarykiwfBtyVTqcHTFVH'}
+Payload Snippet: ------WebKitFormBoundarykiwfBtyVTqcHTFVH
+Content-Disposition: form-data; name="email"
+
+sanjaykumar113r@gmail.com
+------WebKitFormBoundarykiwfBtyVTqcHTFVH
+Content-Disposition: form-data; name="password"
+
+Dev.amypo@123
+------WebKitFormBoundarykiwfBtyVTqcHTFVH
+Content-Disposition: form-data; name="meta_data[browser]"
+
+Chrome 149.0.0.0
+------WebKitFormBoundarykiwfBtyVTqcHTFVH
+Content-Disposition: form-data; name="meta_data[os]"
+
+Windows 10.0 Win32
+------WebKitFormBoundarykiwfBtyVTqcH
+Response JSON: {'message': 'Credentials verified. Please choose OTP delivery method.', 'status': 200, 'user_id': 10948, 'contact_hint': 7373773500, 'channels': [{'id': 1, 'label': 'WhatsApp'}, {'id': 2, 'label': 'SMS'}]}
+--------------------------------------------------
+
+[POST] https://1102amy21.amypo.ai/api/new-send-otp
+Headers: {'sec-ch-ua-platform': '"Windows"', 'authorization': 'Bearer', 'referer': 'https://demolab.amypo.ai/', 'sec-ch-ua': '"Chromium";v="149", "Not)A;Brand";v="24"', 'sec-ch-ua-mobile': '?0', 'x-client-key': '9f3a7c1d5e8b2a6f4c0d7e1b9a3f6c8d2e5a7b1c4d9f0e6a3b8c2d5f7a1e9c0', 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36', 'accept': 'application/json, text/plain, */*', 'content-type': 'multipart/form-data; boundary=----WebKitFormBoundaryB7jpEA8R0i0lW6Ru'}
+Payload Snippet: ------WebKitFormBoundaryB7jpEA8R0i0lW6Ru
+Content-Disposition: form-data; name="user_id"
+
+10948
+------WebKitFormBoundaryB7jpEA8R0i0lW6Ru
+Content-Disposition: form-data; name="channel"
+
+1
+------WebKitFormBoundaryB7jpEA8R0i0lW6Ru--
+
+Response JSON: {'message': 'OTP sent successfully via WhatsApp', 'status': 200, 'channel': 1, 'expires_in': 300}
+--------------------------------------------------
+
+[POST] https://1102amy21.amypo.ai/api/new-verify-otp
+Headers: {'sec-ch-ua-platform': '"Windows"', 'authorization': 'Bearer', 'referer': 'https://demolab.amypo.ai/', 'sec-ch-ua': '"Chromium";v="149", "Not)A;Brand";v="24"', 'sec-ch-ua-mobile': '?0', 'x-client-key': '9f3a7c1d5e8b2a6f4c0d7e1b9a3f6c8d2e5a7b1c4d9f0e6a3b8c2d5f7a1e9c0', 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36', 'accept': 'application/json, text/plain, */*', 'content-type': 'multipart/form-data; boundary=----WebKitFormBoundaryxIhBt7KmsWhtCFs9'}
+Payload Snippet: ------WebKitFormBoundaryxIhBt7KmsWhtCFs9
+Content-Disposition: form-data; name="user_id"
+
+10948
+------WebKitFormBoundaryxIhBt7KmsWhtCFs9
+Content-Disposition: form-data; name="otp"
+
+568404
+------WebKitFormBoundaryxIhBt7KmsWhtCFs9
+Content-Disposition: form-data; name="contact_number"
+
+
+------WebKitFormBoundaryxIhBt7KmsWhtCFs9--
+
+Response JSON: {'message': 'Login successful', 'token': '372884|IexMfIol3iLty94dErAyqa21TxAo198uAgmfOL70a8e0acfc', 'user': {'id': 10948, 'role': 6, 'name': 'Sanjay K', 'email': 'sanjaykumar113r@gmail.com', 'contact_number': 7373773500, 'roll_no': None, 'gender': None, 'access': ['6', '24', '25', '26', '27', '28', '31', '12', '13', '11', '35', '10', '14', '9', '34'], 'permission': ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'], 'dob': None, 'is_profile_updated': True, 'college_id': None, 'department_id': None, 'batch_id': None, 'section_id': None, 'isGloabalPlatformLinked': True}}
+--------------------------------------------------
+
+[POST] https://1102amy21.amypo.ai/api/new-login
+Headers: {'sec-ch-ua-platform': '"Windows"', 'authorization': 'Bearer', 'referer': 'https://demolab.amypo.ai/', 'sec-ch-ua': '"Chromium";v="149", "Not)A;Brand";v="24"', 'sec-ch-ua-mobile': '?0', 'x-client-key': '9f3a7c1d5e8b2a6f4c0d7e1b9a3f6c8d2e5a7b1c4d9f0e6a3b8c2d5f7a1e9c0', 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36', 'accept': 'application/json, text/plain, */*', 'content-type': 'multipart/form-data; boundary=----WebKitFormBoundary46szMV4AHWsjcFSE'}
+Payload Snippet: ------WebKitFormBoundary46szMV4AHWsjcFSE
+Content-Disposition: form-data; name="email"
+
+sanjaykumar113r@gmail.com
+------WebKitFormBoundary46szMV4AHWsjcFSE
+Content-Disposition: form-data; name="password"
+
+Dev.amypo@123
+------WebKitFormBoundary46szMV4AHWsjcFSE
+Content-Disposition: form-data; name="meta_data[browser]"
+
+Chrome 149.0.0.0
+------WebKitFormBoundary46szMV4AHWsjcFSE
+Content-Disposition: form-data; name="meta_data[os]"
+
+Windows 10.0 Win32
+------WebKitFormBoundary46szMV4AHWsj
+Response JSON: {'message': 'Credentials verified. Please choose OTP delivery method.', 'status': 200, 'user_id': 10948, 'contact_hint': 7373773500, 'channels': [{'id': 1, 'label': 'WhatsApp'}, {'id': 2, 'label': 'SMS'}]}
+--------------------------------------------------
+
+[POST] https://1102amy21.amypo.ai/api/new-send-otp
+Headers: {'sec-ch-ua-platform': '"Windows"', 'authorization': 'Bearer', 'referer': 'https://demolab.amypo.ai/', 'sec-ch-ua': '"Chromium";v="149", "Not)A;Brand";v="24"', 'sec-ch-ua-mobile': '?0', 'x-client-key': '9f3a7c1d5e8b2a6f4c0d7e1b9a3f6c8d2e5a7b1c4d9f0e6a3b8c2d5f7a1e9c0', 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36', 'accept': 'application/json, text/plain, */*', 'content-type': 'multipart/form-data; boundary=----WebKitFormBoundaryXigmO7BHx3xltQRt'}
+Payload Snippet: ------WebKitFormBoundaryXigmO7BHx3xltQRt
+Content-Disposition: form-data; name="user_id"
+
+10948
+------WebKitFormBoundaryXigmO7BHx3xltQRt
+Content-Disposition: form-data; name="channel"
+
+1
+------WebKitFormBoundaryXigmO7BHx3xltQRt--
+
+Response JSON: {'message': 'OTP sent successfully via WhatsApp', 'status': 200, 'channel': 1, 'expires_in': 300}
+--------------------------------------------------
+
+[POST] https://1102amy21.amypo.ai/api/new-verify-otp
+Headers: {'sec-ch-ua-platform': '"Windows"', 'authorization': 'Bearer', 'referer': 'https://demolab.amypo.ai/', 'sec-ch-ua': '"Chromium";v="149", "Not)A;Brand";v="24"', 'sec-ch-ua-mobile': '?0', 'x-client-key': '9f3a7c1d5e8b2a6f4c0d7e1b9a3f6c8d2e5a7b1c4d9f0e6a3b8c2d5f7a1e9c0', 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36', 'accept': 'application/json, text/plain, */*', 'content-type': 'multipart/form-data; boundary=----WebKitFormBoundary8GaAnkDpaoRnyzch'}
+Payload Snippet: ------WebKitFormBoundary8GaAnkDpaoRnyzch
+Content-Disposition: form-data; name="user_id"
+
+10948
+------WebKitFormBoundary8GaAnkDpaoRnyzch
+Content-Disposition: form-data; name="otp"
+
+826216
+------WebKitFormBoundary8GaAnkDpaoRnyzch
+Content-Disposition: form-data; name="contact_number"
+
+
+------WebKitFormBoundary8GaAnkDpaoRnyzch--
+
+Response JSON: {'message': 'Login successful', 'token': '372885|nB2NHEB4aH5YZV8kPVBWDUsIFh4jjLDHZF6s2vLVd3f42285', 'user': {'id': 10948, 'role': 6, 'name': 'Sanjay K', 'email': 'sanjaykumar113r@gmail.com', 'contact_number': 7373773500, 'roll_no': None, 'gender': None, 'access': ['6', '24', '25', '26', '27', '28', '31', '12', '13', '11', '35', '10', '14', '9', '34'], 'permission': ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'], 'dob': None, 'is_profile_updated': True, 'college_id': None, 'department_id': None, 'batch_id': None, 'section_id': None, 'isGloabalPlatformLinked': True}}
+--------------------------------------------------

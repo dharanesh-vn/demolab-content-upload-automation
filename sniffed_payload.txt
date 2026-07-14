@@ -1,0 +1,69 @@
+------WebKitFormBoundarydGeMOw20konQW5wS
+Content-Disposition: form-data; name="courseId"
+
+143
+------WebKitFormBoundarydGeMOw20konQW5wS
+Content-Disposition: form-data; name="topicId"
+
+1710
+------WebKitFormBoundarydGeMOw20konQW5wS
+Content-Disposition: form-data; name="questions[0][basicData][title]"
+
+Turbo Injector Sniff Test
+------WebKitFormBoundarydGeMOw20konQW5wS
+Content-Disposition: form-data; name="questions[0][basicData][difficultyLevel]"
+
+2
+------WebKitFormBoundarydGeMOw20konQW5wS
+Content-Disposition: form-data; name="questions[0][basicData][tags][0]"
+
+158
+------WebKitFormBoundarydGeMOw20konQW5wS
+Content-Disposition: form-data; name="questions[0][basicData][language]"
+
+15
+------WebKitFormBoundarydGeMOw20konQW5wS
+Content-Disposition: form-data; name="questions[0][basicData][actualTime]"
+
+30
+------WebKitFormBoundarydGeMOw20konQW5wS
+Content-Disposition: form-data; name="questions[0][questionContent]"
+
+<p>API bypass sniff</p>
+------WebKitFormBoundarydGeMOw20konQW5wS
+Content-Disposition: form-data; name="questions[0][questionType]"
+
+1
+------WebKitFormBoundarydGeMOw20konQW5wS
+Content-Disposition: form-data; name="questions[0][responseAcceptance][0][type]"
+
+pdf
+------WebKitFormBoundarydGeMOw20konQW5wS
+Content-Disposition: form-data; name="questions[0][responseAcceptance][0][maxFiles]"
+
+1
+------WebKitFormBoundarydGeMOw20konQW5wS
+Content-Disposition: form-data; name="questions[0][responseAcceptance][0][maxSizeKb]"
+
+1000
+------WebKitFormBoundarydGeMOw20konQW5wS
+Content-Disposition: form-data; name="questions[0][html]"
+
+
+------WebKitFormBoundarydGeMOw20konQW5wS
+Content-Disposition: form-data; name="questions[0][css]"
+
+
+------WebKitFormBoundarydGeMOw20konQW5wS
+Content-Disposition: form-data; name="questions[0][js]"
+
+
+------WebKitFormBoundarydGeMOw20konQW5wS
+Content-Disposition: form-data; name="statusFlag"
+
+1
+------WebKitFormBoundarydGeMOw20konQW5wS
+Content-Disposition: form-data; name="force"
+
+0
+------WebKitFormBoundarydGeMOw20konQW5wS--

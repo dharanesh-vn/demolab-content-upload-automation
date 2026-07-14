@@ -7,7 +7,7 @@ from tkinter import filedialog
 from dotenv import load_dotenv
 from docx_parser import parse_docx
 from question_model import Question
-from uploader import run_uploader
+import turbo_api
 from pathlib import Path
 
 def get_letter_input(prompt_text):
@@ -244,11 +244,13 @@ def main():
 
     print(f"\nStarting uploader for {len(questions_to_upload)} questions (Q{start_q} to Q{end_q})...")
     
-    run_uploader(
-        questions=questions_to_upload,
-        config=config,
-        credentials={"username": username, "password": password}
-    )
+    if questions_to_upload:
+        # Run the API injector
+        turbo_api.run_uploader(
+            questions=questions_to_upload,
+            config=config,
+            credentials={"username": username, "password": password}
+        )
 
 if __name__ == "__main__":
     try:

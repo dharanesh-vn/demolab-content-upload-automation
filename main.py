@@ -244,7 +244,17 @@ def main():
 
     print("\nResolving attachment paths...")
     import pathlib
-    base_dir = pathlib.Path.cwd()
+    
+    attachments_root = config.get("attachments_root", "").strip()
+    docx_path = config.get("docx_path", "").strip()
+    
+    if attachments_root and pathlib.Path(attachments_root).exists():
+        base_dir = pathlib.Path(attachments_root)
+    elif docx_path and pathlib.Path(docx_path).parent.exists():
+        base_dir = pathlib.Path(docx_path).parent
+    else:
+        base_dir = pathlib.Path.cwd()
+        
     for q in questions_to_upload:
         if q.attachment_filename:
             # Search for the file recursively

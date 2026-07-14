@@ -91,16 +91,11 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 writer.writerow(["---", "---", "---", "---", "---"])
         
 
-        questions_queue = questions_to_upload.copy()
-        current_chunk_size = 30
-        
-        while questions_queue:
-            chunk = questions_queue[:current_chunk_size]
+        chunk_size = 60
+        for chunk_start in range(0, len(questions_to_upload), chunk_size):
+            chunk = questions_to_upload[chunk_start:chunk_start + chunk_size]
             print(f"\n=====================================")
-            if current_chunk_size == 1:
-                print(f"*** ISOLATION MODE *** Testing Q{chunk[0].absolute_index} individually.")
-            else:
-                print(f"Processing Batch: Questions {chunk[0].absolute_index} to {chunk[-1].absolute_index} (Batch size: {len(chunk)})")
+            print(f"Processing Batch: Questions {chunk[0].absolute_index} to {chunk[-1].absolute_index} (Batch size: {len(chunk)})")
             print(f"=====================================\n")
             
             print("Login successful! Navigating to Question Bank...")
@@ -111,7 +106,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
             # 3. Click + Add Questions tab
             print("Clicking '+ Add Questions' tab...")
             page.locator('text=Add Questions').first.click()
-            page.wait_for_timeout(1000)
+            page.wait_for_timeout(500)
         
             # 4. Select subject type
             if config.get("subject_type") == "programming":
@@ -120,7 +115,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
             else:
                 print("Clicking 'Academic' tab...")
                 page.locator('text=Academic').first.click()
-            page.wait_for_timeout(1000)
+            page.wait_for_timeout(500)
         
             # 5. Search and select course and module
             course = config["course_name"]
@@ -130,7 +125,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
             search_input = page.locator('input[name="search_term"]')
             if search_input.count() > 0:
                 search_input.fill(course)
-                page.wait_for_timeout(1000)
+                page.wait_for_timeout(500)
             
             course_loc = page.get_by_text(course, exact=True).first
             try:
@@ -140,12 +135,12 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 print("It may have been renamed by someone else mid-upload!")
                 with open(log_file, "a", encoding="utf-8", newline="") as f:
                     writer = csv.writer(f)
-                    for q in questions_queue:
+                    for q in questions_to_upload[chunk_start:]:
                         writer.writerow([current_docx_name, q.absolute_index, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), f"Course '{course}' missing"])
                 browser.close()
                 return
             
-            page.wait_for_timeout(1000)
+            page.wait_for_timeout(500)
         
             print(f"Selecting Module: {module}")
             module_loc = page.get_by_text(module, exact=True).first
@@ -156,17 +151,17 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 print("It may have been renamed by someone else mid-upload!")
                 with open(log_file, "a", encoding="utf-8", newline="") as f:
                     writer = csv.writer(f)
-                    for q in questions_queue:
+                    for q in questions_to_upload[chunk_start:]:
                         writer.writerow([current_docx_name, q.absolute_index, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), f"Module '{module}' missing"])
                 browser.close()
                 return
             
-            page.wait_for_timeout(1000)
+            page.wait_for_timeout(500)
         
             # 5. Click the "Project Questions" card
             print("Clicking 'Project Questions' card...")
             page.locator('text=Project Questions').first.click(force=True)
-            page.wait_for_timeout(2000)
+            page.wait_for_timeout(1000)
             # Wait for the configuration form to appear
             expect(page.get_by_text("Project Questions Configuration")).to_be_visible(timeout=10000)
             page.wait_for_load_state("networkidle")
@@ -186,39 +181,39 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     # 2. Select Difficulty
                     diff_input = page.locator('input.select__input').nth(form_index * 3 + 0)
                     diff_input.click(force=True)
-                    page.wait_for_timeout(100)
-                    diff_input.fill(q.difficulty)
-                    page.wait_for_timeout(300)
-                    page.keyboard.press("ArrowDown")
                     page.wait_for_timeout(50)
+                    diff_input.fill(q.difficulty)
+                    page.wait_for_timeout(150)
+                    page.keyboard.press("ArrowDown")
+                    page.wait_for_timeout(20)
                     page.keyboard.press("Enter")
-                    page.wait_for_timeout(100)
+                    page.wait_for_timeout(50)
                     if diff_input.input_value() != "":
                         raise ValueError(f"Failed to select Difficulty '{q.difficulty}'.")
                 
                     # 3. Select Tags
                     tag_input = page.locator('input.select__input').nth(form_index * 3 + 1)
                     tag_input.click(force=True)
-                    page.wait_for_timeout(100)
-                    tag_input.fill(q.tags)
-                    page.wait_for_timeout(300)
-                    page.keyboard.press("ArrowDown")
                     page.wait_for_timeout(50)
+                    tag_input.fill(q.tags)
+                    page.wait_for_timeout(150)
+                    page.keyboard.press("ArrowDown")
+                    page.wait_for_timeout(20)
                     page.keyboard.press("Enter")
-                    page.wait_for_timeout(100)
+                    page.wait_for_timeout(50)
                     if tag_input.input_value() != "":
                         raise ValueError(f"Failed to select Tag '{q.tags}'.")
                 
                     # 4. Select Language
                     lang_input = page.locator('input.select__input').nth(form_index * 3 + 2)
                     lang_input.click(force=True)
-                    page.wait_for_timeout(100)
-                    lang_input.fill(q.language)
-                    page.wait_for_timeout(300)
-                    page.keyboard.press("ArrowDown")
                     page.wait_for_timeout(50)
+                    lang_input.fill(q.language)
+                    page.wait_for_timeout(150)
+                    page.keyboard.press("ArrowDown")
+                    page.wait_for_timeout(20)
                     page.keyboard.press("Enter")
-                    page.wait_for_timeout(100)
+                    page.wait_for_timeout(50)
                     if lang_input.input_value() != "":
                         raise ValueError(f"Failed to select Language '{q.language}'.")
                 
@@ -241,7 +236,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                                     page.locator(xpath).click(force=True)
                                 fc_info.value.set_files(abs_path)
                                 print(f"Successfully injected file: {q.attachment_filename}")
-                                page.wait_for_timeout(1000)
+                                page.wait_for_timeout(300)
                             except Exception as e:
                                 print(f"Failed to attach file: {e}")
                         else:
@@ -328,32 +323,20 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     break
 
             # Handle the result of the chunk upload
-            if batch_success:
-                # Successfully saved chunk, remove from queue
-                questions_queue = questions_queue[len(chunk):]
-                # Reset chunk size in case it was isolated
-                current_chunk_size = 30
-            else:
-                if current_chunk_size > 1:
-                    print(f"\n[ISOLATION MODE ENGAGED] The batch of {len(chunk)} questions failed.")
-                    print("Retrying this exact batch one-by-one to find the bad question...")
-                    current_chunk_size = 1
-                else:
-                    # We were already in isolation mode (chunk size 1), so THIS is the bad question!
-                    bad_q = chunk[0]
-                    print(f"\n[BAD QUESTION DISCARDED] Q{bad_q.absolute_index} has been permanently discarded. Reason: {batch_error_reason}")
-                    fail_count += 1
-                    failed_questions_list.append(bad_q.absolute_index)
-                    with open(log_file, "a", encoding="utf-8", newline="") as f:
-                        writer = csv.writer(f)
-                        writer.writerow([current_docx_name, bad_q.absolute_index, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), batch_error_reason])
-                    
-                    # Remove the bad question from the queue
-                    questions_queue.pop(0)
-                    
-                    # Return to turbo speed for the rest of the queue
-                    print("Resuming turbo speed (30) for remaining questions...")
-                    current_chunk_size = 30
+            if not batch_success:
+                print(f"\n[BATCH FAILED] The batch from Q{chunk[0].absolute_index} to Q{chunk[-1].absolute_index} failed!")
+                print(f"Reason: {batch_error_reason}")
+                print(f"--> PLEASE FIX THE ISSUE IN questions_review.csv AND RE-RUN STARTING FROM Q{chunk[0].absolute_index}")
+                
+                fail_count += len(chunk)
+                with open(log_file, "a", encoding="utf-8", newline="") as f:
+                    writer = csv.writer(f)
+                    for failed_q in chunk:
+                        writer.writerow([current_docx_name, failed_q.absolute_index, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), batch_error_reason])
+                        failed_questions_list.append(failed_q.absolute_index)
+                
+                break # Abort the rest of the chunks
+
         total_seconds = int(time.time() - start_time)
         mins, secs = divmod(total_seconds, 60)
         time_str = f"{mins} mins {secs} secs" if mins > 0 else f"{secs} secs"

@@ -128,10 +128,14 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
             
             course_loc = page.get_by_text(course, exact=True).first
             try:
-                course_loc.click(timeout=5000)
+                course_loc.click(timeout=5000, force=True)
             except Exception:
                 print(f"\n❌ ERROR: Could not find Course '{course}'.")
-                print("Please check your spelling and capitalization, then run again.")
+                print("It may have been renamed by someone else mid-upload!")
+                with open(log_file, "a", encoding="utf-8", newline="") as f:
+                    writer = csv.writer(f)
+                    for q in questions_to_upload[chunk_start:]:
+                        writer.writerow([current_docx_name, q.absolute_index, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), f"Course '{course}' missing"])
                 browser.close()
                 return
             
@@ -140,10 +144,14 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
             print(f"Selecting Module: {module}")
             module_loc = page.get_by_text(module, exact=True).first
             try:
-                module_loc.click(timeout=5000)
+                module_loc.click(timeout=5000, force=True)
             except Exception:
                 print(f"\n[ERROR] Could not find Module '{module}'.")
-                print("Please check your spelling and capitalization, then run again.")
+                print("It may have been renamed by someone else mid-upload!")
+                with open(log_file, "a", encoding="utf-8", newline="") as f:
+                    writer = csv.writer(f)
+                    for q in questions_to_upload[chunk_start:]:
+                        writer.writerow([current_docx_name, q.absolute_index, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), f"Module '{module}' missing"])
                 browser.close()
                 return
             
@@ -151,7 +159,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
         
             # 5. Click the "Project Questions" card
             print("Clicking 'Project Questions' card...")
-            page.locator('text=Project Questions').first.click()
+            page.locator('text=Project Questions').first.click(force=True)
             page.wait_for_timeout(2000)
             # Wait for the configuration form to appear
             expect(page.get_by_text("Project Questions Configuration")).to_be_visible(timeout=10000)
@@ -265,7 +273,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     # 9. Save or Add Another
                     if i == len(chunk) - 1:
                         print("Last question! Clicking Save Questions...")
-                        page.locator('button', has_text='Save Questions').first.click()
+                        page.locator('button', has_text='Save Questions').first.click(force=True)
                         print("Waiting for server to process the save...")
                         page.wait_for_timeout(2000)
                     
@@ -286,17 +294,32 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                             print(f"\n[CRITICAL ERROR] SAVING: The website rejected the save (or is taking too long)!")
                             print("The 'Save Questions' button is still visible, which means the popup did not close.")
                             
+                            # Scrape any visible toasts or text to give a better error reason!
+                            error_reason = "Save operation timed out or was rejected"
+                            try:
+                                toasts = page.locator('.Toastify__toast, .toast, .alert, .swal-modal, .modal-content').all_inner_texts()
+                                if toasts:
+                                    error_reason = " | ".join([t.replace('\n', ' ') for t in toasts])
+                                else:
+                                    body_text = page.locator('body').inner_text().lower()
+                                    if "already exist" in body_text or "duplicate" in body_text or "similar question" in body_text:
+                                        error_reason = "Duplicate question detected by server"
+                            except Exception:
+                                pass
+                                
+                            print(f"Reason: {error_reason}")
+                            
                             fail_count += len(pending_success)
                             with open(log_file, "a", encoding="utf-8", newline="") as f:
                                 writer = csv.writer(f)
                                 for failed_q in pending_success:
-                                    writer.writerow([current_docx_name, failed_q.absolute_index, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), "Save operation timed out or was rejected"])
+                                    writer.writerow([current_docx_name, failed_q.absolute_index, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), error_reason])
                             
                             # Use break instead of raise to smoothly trigger the outer loop abort logic without double-logging the final question
                             break
                     else:
                         print("Clicking Add Question...")
-                        page.get_by_role("button", name="Add Question").last.click()
+                        page.get_by_role("button", name="Add Question").last.click(force=True)
                         page.wait_for_timeout(300)
                     
                     form_index += 1

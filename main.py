@@ -242,6 +242,21 @@ def main():
         print("No questions found in that range!")
         return
 
+    print("\nResolving attachment paths...")
+    import pathlib
+    base_dir = pathlib.Path.cwd()
+    for q in questions_to_upload:
+        if q.attachment_filename:
+            # Search for the file recursively
+            found_files = list(base_dir.rglob(q.attachment_filename))
+            if found_files:
+                q.resolved_attachment_path = found_files[0]
+            else:
+                print(f"  [WARNING] Could not find attachment file: {q.attachment_filename}")
+                q.resolved_attachment_path = None
+        else:
+            q.resolved_attachment_path = None
+
     print(f"\nStarting uploader for {len(questions_to_upload)} questions (Q{start_q} to Q{end_q})...")
     
     run_uploader(

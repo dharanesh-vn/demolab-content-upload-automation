@@ -1,51 +1,58 @@
 # Amypo Automated Question Uploader
 
-Welcome to the Amypo Question Automation script! This tool is designed to save you hours of manual data entry. You just provide a Word Document (`.docx`) containing your questions, and the script will automatically parse them, map the attachments, and upload them to the Amypo platform.
+Welcome to the Amypo Question Automation script! This tool is designed to save you hours of manual data entry by automatically parsing your Word Documents and uploading the questions to Amypo.
 
-## Getting Started
+## System Requirements
 
-### 1. Prerequisites
-If you haven't already, you need Python installed on your computer.
-- Download Python from [python.org](https://www.python.org/downloads/)
-- Once installed, open your terminal (Command Prompt) and run:
-  ```bash
-  pip install -r requirements.txt
-  playwright install
-  ```
+**CRITICAL: Python Version**
+This script relies on `Playwright` for browser automation. Due to recent breaking changes in `asyncio` inside Python 3.13, **Python 3.13 is NOT SUPPORTED** and will cause a `Segmentation Fault` or `AttributeError` on macOS/Linux. 
+- You **MUST** use Python 3.10, 3.11, or 3.12.
+- **Mac Users:** If you installed Python via Homebrew (`brew install python`), it likely installed 3.13. Please run `brew install python@3.12` and use `python3.12 main.py`.
 
-### 2. Prepare Your Assignment Folder
-For the script to work magically, keep your files organized.
-- Ensure your questions are formatted correctly inside a **Master Word Document (`.docx`)**.
-- Keep all of your attachment files (PDFs, Images, Data Tables) in the same folder (or sub-folders) as your Master Word Document.
-- **Note:** You do not need to name the attachments folder perfectly. The script is smart enough to scan the entire project folder and find the attachments based on the file names listed in your Word Document!
-
-## How to Run the Script
-
-1. Open your terminal (Command Prompt).
-2. Navigate to this `content_automation` folder.
-3. Run the following command:
+### Installation
+1. Install a supported Python version (3.10 - 3.12).
+2. Open your terminal and install the dependencies:
    ```bash
-   python main.py
+   pip install -r requirements.txt
+   playwright install chromium
    ```
-4. **The Setup Window:** A native Windows popup will appear!
-   - Simply navigate to and select your Master Assignment `.docx` file.
 
-**Note on Credentials:** Your Amypo credentials are securely stored in the `.env` file. When you first clone the repository, copy the `.env.example` file and rename it to `.env`. Then, enter your `AMYPO_USERNAME` and `AMYPO_PASSWORD`. You only need to set them once, and the script will automatically log you in every time!
+## Known Errors & Optimal Solutions
 
-5. **Terminal Setup:** The script will ask you if this is a **Bulk Multi-Module Upload** (Y/N).
-   - If **Y**: You define the questions per module (e.g. 60) and the prefix (e.g. 'module '). The script will magically tag the first 60 questions as `module 1`, the next 60 as `module 2`, etc.
-   - If **N**: It will ask for a standard global tag.
-6. **CSV Review Phase:** The script will generate a `questions_review.csv` file. You can open this in Excel to verify all questions, fix any typos, or modify "User Response Acceptance" formats before they are uploaded.
-7. **Upload Execution:** Head back to the terminal, type `1` to confirm (the script will safely catch if you forget to close Excel), enter your starting and ending **Absolute Index** range, and then enter your OTP from WhatsApp!
+If your teammates encounter errors while running the uploads, here is the official diagnostic guide:
 
-## Sit Back and Relax!
-Once the OTP is entered, the **Invisible Headless Browser** will take over! 
-You will not see a browser window open. It runs completely silently in the background at maximum speed, bypassing visual rendering to drastically increase processing times. When it finishes, it will print a beautiful summary with exact minutes and seconds taken!
+### 1. "Duplicate question detected by server"
+* **Symptom:** The terminal prints `[BATCH FAILED]` and the reason is a duplicate question.
+* **Reason:** The Amypo server scans the question database. If someone else already uploaded that exact question (or if a previous script run got cut off halfway), the server rejects it to prevent duplicates.
+* **Optimal Solution:** The script intentionally aborts to protect your data. Look at the terminal output to see which chunk failed (e.g., Q61 to Q120). Open `questions_review.csv`, delete or fix the duplicate questions, and then run `python main.py` again, starting from Q61.
 
-## Advanced Safety Features
-- **Turbo Batch Chunking:** To handle massive 300+ question uploads without crashing your browser, the script breaks the workload into 30-question batches. It automatically navigates, saves, and refreshes the DOM to keep memory usage low and execution speed blazing fast!
-- **Atomic Saving & Network Resistance:** The script tracks progress intelligently. If you hit `Ctrl+C` to abort mid-batch, or if the server crashes under heavy load, it safely logs the exact batch failure and aborts. It gives the server up to 60 seconds to process saves to survive network lag.
+### 2. "Timeout 60000ms exceeded ... waiting for locator"
+* **Symptom:** A batch of questions takes an incredibly long time (e.g., 27 minutes) and eventually crashes with a timeout.
+* **Reason:** This is called **DOM Lag**. If the batch size is set too high (e.g., 60), Playwright is forced to load 60 massive Rich Text Editors on a single web page. This exhausts the browser's memory, causing every keystroke to lag until it completely freezes and times out.
+* **Optimal Solution:** This was permanently fixed in our latest update! We reduced the `chunk_size` from 60 down to **15**. This keeps the browser memory perfectly clean and lightning-fast. **Ensure you run `git pull`** to get the latest code!
 
-## Troubleshooting
-- **Missing Attachments Warning?** If the script can't find an attachment mentioned in your Word Document (e.g., due to a typo), it will pause and print a Yellow Warning. You can press `Y` to upload the question anyway *without* the attachment, or `N` to abort and fix the file.
-- **Website Rejects Save?** The script will print a Critical Error in red if the website rejects the save. Check the browser window for red UI errors on the form fields.
+### 3. Traceback Crash on `page.locator('text=Add Questions').first.click()`
+* **Symptom:** After finishing one batch, the script crashes while trying to start the next batch.
+* **Reason:** After the server saves a massive batch of questions, the script navigates back to the Question Bank. If the server is slow, the page may not have fully rendered the "Add Questions" button yet, causing Playwright to click empty space or crash.
+* **Optimal Solution:** Lowering the `chunk_size` to 15 (via `git pull`) prevents the server from hanging, meaning the page loads instantly and this error disappears.
+
+### 4. `AttributeError: '_UnixSelectorEventLoop' object has no attribute '_closed'`
+* **Symptom:** The script crashes instantly with a `segmentation fault` when you run `python main.py`.
+* **Reason:** You are running Python 3.13 on a Mac. Playwright is currently incompatible with Python 3.13's new asyncio backend.
+* **Optimal Solution:** Downgrade to Python 3.12 (`brew install python@3.12`) and run the script using `python3.12 main.py`.
+
+## Configuration (`config.json`)
+Make sure your URLs point to the correct environment. For testing, we use the `demolab` servers.
+```json
+{
+  "login_url": "https://demolab.amypo.ai/login",
+  "question_bank_url": "https://demolab.amypo.ai/question-bank"
+}
+```
+
+## Running the Script
+1. Set up your `.env` file with `AMYPO_USERNAME` and `AMYPO_PASSWORD`.
+2. Run `python main.py` (or `python3.12 main.py` on Mac).
+3. Select your `.docx` file in the popup.
+4. Verify your `questions_review.csv`.
+5. Enter your start/end question numbers and watch the script fly!

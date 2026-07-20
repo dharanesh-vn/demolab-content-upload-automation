@@ -1,6 +1,6 @@
 {
-  "login_url": "https://dotlab.amypo.ai/login",
-  "question_bank_url": "https://dotlab.amypo.ai/question-bank",
+  "login_url": "https://demolab.amypo.ai/login",
+  "question_bank_url": "https://demolab.amypo.ai/question-bank",
   "course_name": "demo",
   "module_name": "Moduel 1",
   "docx_path": "",

@@ -265,7 +265,14 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     # 9. Save or Add Another
                     if i == len(chunk) - 1:
                         print("Last question! Clicking Save Questions...")
-                        page.locator('button', has_text='Save Questions').first.click(force=True)
+                        try:
+                            page.locator('button', has_text='Save Questions').first.click(timeout=5000, force=True)
+                        except Exception as e:
+                            print(f"\n[CRITICAL ERROR] Failed to click 'Save Questions' button! ({e})")
+                            batch_success = False
+                            batch_error_reason = "Failed to click Save button"
+                            break
+                            
                         print("Waiting for server to process the save...")
                         page.wait_for_timeout(2000)
                     
@@ -280,13 +287,15 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                                     writer.writerow([current_docx_name, completed_q.absolute_index, "success", time.strftime("%Y-%m-%d %H:%M:%S"), ""])
                                 
                         except Exception as save_err:
-                            print(f"\n[CRITICAL ERROR] SAVING: The website rejected the save (or is taking too long)!")
-                            
-                            error_reason = "Save operation timed out or was rejected"
+                            print(f"\n[CRITICAL ERROR] SAVING: The website rejected the save or timed out!")
+                            error_reason = "Save operation timed out (server took too long)"
+                            if "Timeout" not in str(save_err):
+                                error_reason = "Save operation failed or rejected by server"
+                                
                             try:
                                 toasts = page.locator('.Toastify__toast, .toast, .alert, .swal-modal, .modal-content').all_inner_texts()
                                 if toasts:
-                                    error_reason = " | ".join([t.replace('\n', ' ') for t in toasts])
+                                    error_reason = "Server Message: " + " | ".join([t.replace('\n', ' ') for t in toasts])
                                 else:
                                     body_text = page.locator('body').inner_text().lower()
                                     if "already exist" in body_text or "duplicate" in body_text or "similar question" in body_text:
@@ -315,9 +324,12 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     browser.close()
                     return
                 except Exception as e:
-                    print(f"Failed on [Absolute #{q.absolute_index} | Internal Q{q.question_number}]: {e}")
+                    error_msg = str(e)
+                    if "Timeout" in error_msg:
+                        error_msg = f"Timeout Error: DOM lag or element missing ({error_msg.splitlines()[0]})"
+                    print(f"Failed on [Absolute #{q.absolute_index} | Internal Q{q.question_number}]: {error_msg}")
                     batch_success = False
-                    batch_error_reason = str(e)
+                    batch_error_reason = error_msg
                     Path("screenshots").mkdir(exist_ok=True)
                     page.screenshot(path=f"screenshots/failed_abs{q.absolute_index}_q{q.question_number}.png")
                     break
@@ -325,8 +337,8 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
             # Handle the result of the chunk upload
             if not batch_success:
                 print(f"\n[BATCH FAILED] The batch from Q{chunk[0].absolute_index} to Q{chunk[-1].absolute_index} failed!")
-                print(f"Reason: {batch_error_reason}")
-                print(f"--> PLEASE FIX THE ISSUE IN questions_review.csv AND RE-RUN STARTING FROM Q{chunk[0].absolute_index}")
+                print(f"Detailed Error Reason: {batch_error_reason}")
+                print(f"--> PLEASE FIX THE ISSUE AND RE-RUN STARTING FROM Q{chunk[0].absolute_index}")
                 
                 fail_count += len(chunk)
                 with open(log_file, "a", encoding="utf-8", newline="") as f:

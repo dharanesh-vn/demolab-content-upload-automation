@@ -9,13 +9,41 @@ This script relies on `Playwright` for browser automation. Due to recent breakin
 - You **MUST** use Python 3.10, 3.11, or 3.12.
 - **Mac Users:** If you installed Python via Homebrew (`brew install python`), it likely installed 3.13. Please run `brew install python@3.12` and use `python3.12 main.py`.
 
-### Installation
-1. Install a supported Python version (3.10 - 3.12).
-2. Open your terminal and install the dependencies:
-   ```bash
-   pip install -r requirements.txt
-   playwright install chromium
-   ```
+### Installation (From Scratch)
+
+If you are setting this up for the first time on a new computer:
+
+**1. Install Prerequisites**
+- Open the **Microsoft Store** on your Windows PC, search for **Python 3.12**, and click Install (this perfectly handles all PATH setup automatically!).
+- Download and install **[Visual Studio Code (VS Code)](https://code.visualstudio.com/)**.
+- Download and install **[Git Bash](https://git-scm.com/downloads)**.
+
+**2. Clone and Setup**
+Open VS Code, click **Terminal -> New Terminal** at the top, select **Git Bash** from the terminal dropdown on the right, and run these exact commands in order:
+
+```bash
+# Clone the repository
+git clone https://github.com/dharanesh-vn/demolab-content-upload-automation
+cd demolab-content-upload-automation
+
+# Upgrade pip to avoid installation errors
+python -m pip install --upgrade pip
+
+# Install required Python packages
+python -m pip install -r requirements.txt
+
+# Install ONLY the Chromium browser for Playwright to save space/data
+python -m playwright install chromium
+```
+
+**3. Configure Credentials**
+This script requires your Amypo login credentials to run.
+1. In VS Code, open the `.env` file located in the project folder.
+2. Replace the placeholder email and password with your actual Amypo login:
+```
+AMYPO_USERNAME=your_email_here@example.com
+AMYPO_PASSWORD=your_password_here
+```
 
 ## Known Errors & Optimal Solutions
 
@@ -51,8 +79,8 @@ Make sure your URLs point to the correct environment. For testing, we use the `d
 ```
 
 ## Running the Script
-1. Set up your `.env` file with `AMYPO_USERNAME` and `AMYPO_PASSWORD`.
+1. Ensure your `.env` file is set up correctly (see Installation step 3).
 2. Run `python main.py` (or `python3.12 main.py` on Mac).
-3. Select your `.docx` file in the popup.
-4. Verify your `questions_review.csv`.
+3. Select your `.docx` file in the file explorer popup.
+4. Verify your `questions_review.csv` looks correct.
 5. Enter your start/end question numbers and watch the script fly!

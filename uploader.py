@@ -15,6 +15,13 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
     fail_count = 0
     failed_questions_list = []
     start_time = time.time()
+    # Clear old screenshots
+    import shutil
+    screenshots_dir = Path("screenshots")
+    if screenshots_dir.exists():
+        shutil.rmtree(screenshots_dir)
+    screenshots_dir.mkdir(exist_ok=True)
+    
     # Prepare run log
     log_file = Path("run_log.csv")
     completed_q_nums = set()
@@ -59,7 +66,21 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
         
         print("Waiting for OTP input screen to render...")
         timeout = config.get("otp_wait_timeout_ms", 120000)
-        page.wait_for_selector('input[inputmode="numeric"]', timeout=timeout)
+        
+        # Check for invalid password error quickly before waiting for OTP
+        try:
+            # We wait a max of 2 seconds for the OTP field. If not there, we check for toasts.
+            page.wait_for_selector('input[inputmode="numeric"]', timeout=3000)
+        except Exception:
+            # Check for error toast
+            body_text = page.locator('body').inner_text().lower()
+            if "invalid password" in body_text or "invalid credentials" in body_text or "wrong" in body_text:
+                print("\n[ERROR] Login Failed: Incorrect Password or Username entered!")
+                browser.close()
+                return
+            else:
+                # Still wait for the full timeout if no clear error is found
+                page.wait_for_selector('input[inputmode="numeric"]', timeout=timeout)
         
         # Prompt for OTP in the terminal
         otp = input("Enter the 6-digit OTP here: ").strip()
@@ -72,7 +93,17 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
         
         # Wait until we are successfully logged in (URL changes from login page)
         print("Waiting for dashboard to load...")
-        page.wait_for_url(lambda url: "login" not in url, timeout=timeout)
+        try:
+            page.wait_for_url(lambda url: "login" not in url, timeout=3000)
+        except Exception:
+            body_text = page.locator('body').inner_text().lower()
+            if "invalid otp" in body_text or "wrong otp" in body_text or "expired" in body_text:
+                print("\n[ERROR] Login Failed: Incorrect or Expired OTP entered!")
+                browser.close()
+                return
+            else:
+                page.wait_for_url(lambda url: "login" not in url, timeout=timeout)
+        
         page.wait_for_timeout(3000)  # Give it a moment to establish the session
         
         # --- Filter out already completed questions ---
@@ -89,17 +120,72 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
             with open(log_file, "a", encoding="utf-8", newline="") as f:
                 writer = csv.writer(f)
                 writer.writerow(["---", "---", "---", "---", "---"])
+                
+        # --- Final UI Verification Function ---
+        def take_final_screenshot(page_obj, conf, s_count):
+            print("\n[VERIFICATION] Verifying final count on 'Our Questions' page...")
+            try:
+                # Reload the dashboard immediately to guarantee a clean state
+                page_obj.goto(conf["question_bank_url"])
+                page_obj.wait_for_timeout(1500)
+                    
+                # 1. Click "Our Questions" button
+                page_obj.locator('button:has-text("Our Questions")').first.click(timeout=5000)
+                page_obj.wait_for_timeout(1500)
+                
+                # 2. Search for the course
+                search_input = page_obj.locator('input[placeholder="Search for Course..."], input[placeholder*="Search for"]')
+                if search_input.count() > 0:
+                    search_input.first.fill(conf["course_name"])
+                    page_obj.wait_for_timeout(1000)
+                
+                # 3. Click the matching course card
+                page_obj.locator(f'p:has-text("{conf["course_name"]}")').first.click(timeout=5000)
+                page_obj.wait_for_timeout(2000)
+                
+                # 4. Try to extract the specific question count for the module
+                try:
+                    module_name = conf["module_name"]
+                    # Find a text node that matches digits followed by "Questions" near the module name
+                    count_pill = page_obj.locator(f'div:has-text("{module_name}")').locator('text=/\\d+\\s+Questions/').first
+                    if count_pill.is_visible():
+                        count_text = count_pill.inner_text().strip()
+                        print(f"✅ [SUCCESS] Verification found module '{module_name}': {count_text}")
+                    else:
+                        print(f"⚠️ [WARNING] Could not read the exact question count for '{module_name}'.")
+                except Exception:
+                    pass
+                    
+                # Take a screenshot for the user's peace of mind
+                Path("screenshots").mkdir(exist_ok=True)
+                dt_str = time.strftime("%Y-%m-%d_%H-%M-%S")
+                screenshot_path = f"screenshots/final_verification_{dt_str}.png"
+                page_obj.screenshot(path=screenshot_path, full_page=True)
+                print(f"[VERIFICATION] Saved screenshot of the module page to: {screenshot_path}")
+                
+            except Exception:
+                print("[WARNING] Could not complete UI verification (navigation failed).")
         
-
-        chunk_size = 60
+        # Process questions in chunks
+        chunk_size = 15
+        user_aborted = False
         for chunk_start in range(0, len(questions_to_upload), chunk_size):
+            if user_aborted:
+                break
             chunk = questions_to_upload[chunk_start:chunk_start + chunk_size]
-            print(f"\n=====================================")
+            print("\n=====================================")
             print(f"Processing Batch: Questions {chunk[0].absolute_index} to {chunk[-1].absolute_index} (Batch size: {len(chunk)})")
-            print(f"=====================================\n")
+            print("=====================================\n")
             
-            print("Login successful! Navigating to Question Bank...")
+            print("Navigating to Question Bank (Clearing DOM Memory)...")
             page.goto(config["question_bank_url"])
+            page.wait_for_timeout(1500)
+            
+            # --- Check for silent session expiration ---
+            if "login" in page.url.lower():
+                print("\n[CRITICAL ERROR] Session expired silently mid-run!")
+                print(f"Failed at Batch: Q{chunk[0].absolute_index}")
+                break
         
             # --- 2. Navigate UI exactly as requested ---
         
@@ -132,7 +218,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 course_loc.click(timeout=5000, force=True)
             except Exception:
                 print(f"\n❌ ERROR: Could not find Course '{course}'.")
-                print("It may have been renamed by someone else mid-upload!")
+                print("The course may have been renamed, deleted, or its visibility restricted prior to this upload batch.")
                 with open(log_file, "a", encoding="utf-8", newline="") as f:
                     writer = csv.writer(f)
                     for q in questions_to_upload[chunk_start:]:
@@ -148,7 +234,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 module_loc.click(timeout=5000, force=True)
             except Exception:
                 print(f"\n[ERROR] Could not find Module '{module}'.")
-                print("It may have been renamed by someone else mid-upload!")
+                print("The module may have been renamed, deleted, or its visibility restricted prior to this upload batch.")
                 with open(log_file, "a", encoding="utf-8", newline="") as f:
                     writer = csv.writer(f)
                     for q in questions_to_upload[chunk_start:]:
@@ -181,39 +267,45 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     # 2. Select Difficulty
                     diff_input = page.locator('input.select__input').nth(form_index * 3 + 0)
                     diff_input.click(force=True)
-                    page.wait_for_timeout(50)
+                    page.wait_for_timeout(100)
                     diff_input.fill(q.difficulty)
-                    page.wait_for_timeout(150)
+                    page.wait_for_timeout(300)
+                    if page.locator('text="No options"').is_visible():
+                        raise ValueError(f"Difficulty '{q.difficulty}' does not exist (No options found).")
                     page.keyboard.press("ArrowDown")
-                    page.wait_for_timeout(20)
-                    page.keyboard.press("Enter")
                     page.wait_for_timeout(50)
+                    page.keyboard.press("Enter")
+                    page.wait_for_timeout(100)
                     if diff_input.input_value() != "":
                         raise ValueError(f"Failed to select Difficulty '{q.difficulty}'.")
                 
                     # 3. Select Tags
                     tag_input = page.locator('input.select__input').nth(form_index * 3 + 1)
                     tag_input.click(force=True)
-                    page.wait_for_timeout(50)
+                    page.wait_for_timeout(100)
                     tag_input.fill(q.tags)
-                    page.wait_for_timeout(150)
+                    page.wait_for_timeout(300)
+                    if page.locator('text="No options"').is_visible():
+                        raise ValueError(f"Tag '{q.tags}' does not exist in the system (No options found).")
                     page.keyboard.press("ArrowDown")
-                    page.wait_for_timeout(20)
-                    page.keyboard.press("Enter")
                     page.wait_for_timeout(50)
+                    page.keyboard.press("Enter")
+                    page.wait_for_timeout(100)
                     if tag_input.input_value() != "":
                         raise ValueError(f"Failed to select Tag '{q.tags}'.")
                 
                     # 4. Select Language
                     lang_input = page.locator('input.select__input').nth(form_index * 3 + 2)
                     lang_input.click(force=True)
-                    page.wait_for_timeout(50)
+                    page.wait_for_timeout(100)
                     lang_input.fill(q.language)
-                    page.wait_for_timeout(150)
+                    page.wait_for_timeout(300)
+                    if page.locator('text="No options"').is_visible():
+                        raise ValueError(f"Language '{q.language}' does not exist in the system (No options found).")
                     page.keyboard.press("ArrowDown")
-                    page.wait_for_timeout(20)
-                    page.keyboard.press("Enter")
                     page.wait_for_timeout(50)
+                    page.keyboard.press("Enter")
+                    page.wait_for_timeout(100)
                     if lang_input.input_value() != "":
                         raise ValueError(f"Failed to select Language '{q.language}'.")
                 
@@ -274,24 +366,68 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                             break
                             
                         print("Waiting for server to process the save...")
-                        page.wait_for_timeout(2000)
-                    
-                        try:
-                            page.locator('button', has_text='Save Questions').first.wait_for(state='hidden', timeout=60000)
-                            print("[SUCCESS] Upload process completed successfully and questions were saved!")
                         
+                        save_success = False
+                        confirm_handled = False
+                        duplicate_indexes = []
+                        
+                        # Wait up to 60 seconds for the save button to hide
+                        for wait_idx in range(60):
+                            if page.locator('button', has_text='Save Questions').first.is_hidden():
+                                save_success = True
+                                break
+                                
+                            # Check if the duplicate confirm popup appeared
+                            try:
+                                confirm_btn = page.locator('button:has-text("Confirm")').first
+                                if confirm_btn.is_visible():
+                                    if not confirm_handled:
+                                        print("\n[WARNING] Server detected similar/duplicate questions!")
+                                        
+                                        # Scrape duplicate titles from modal before confirming
+                                        try:
+                                            modal_text = page.locator('body').inner_text()
+                                            
+                                            for pq in pending_success:
+                                                # Check if the question title exists in the modal text
+                                                clean_title = pq.title.strip()
+                                                if len(clean_title) > 30:
+                                                    clean_title = clean_title[:30]
+                                                    
+                                                if clean_title in modal_text:
+                                                    duplicate_indexes.append(pq.absolute_index)
+                                                    
+                                            if duplicate_indexes:
+                                                print(f"Identified duplicates at Abs Indexes: {duplicate_indexes}")
+                                        except Exception as parse_e:
+                                            print(f"Could not parse duplicate titles: {parse_e}")
+                                            
+                                        print("Clicking 'Confirm' to automatically bypass and force upload...")
+                                        confirm_btn.click(force=True)
+                                        confirm_handled = True
+                                        page.wait_for_timeout(2000) # Give it time to process the confirm
+                                        continue
+                            except Exception:
+                                pass
+                                
+                            page.wait_for_timeout(1000)
+                        
+                        if save_success:
+                            print("[SUCCESS] Upload process completed successfully and questions were saved!")
                             success_count += len(pending_success)
                             with open(log_file, "a", encoding="utf-8", newline="") as f:
                                 writer = csv.writer(f)
                                 for completed_q in pending_success:
-                                    writer.writerow([current_docx_name, completed_q.absolute_index, "success", time.strftime("%Y-%m-%d %H:%M:%S"), ""])
-                                
-                        except Exception as save_err:
-                            print(f"\n[CRITICAL ERROR] SAVING: The website rejected the save or timed out!")
+                                    status = "success"
+                                    reason = ""
+                                    if completed_q.absolute_index in duplicate_indexes:
+                                        status = "success (duplicate warning)"
+                                        reason = "Server flagged as similar/duplicate"
+                                    writer.writerow([current_docx_name, completed_q.absolute_index, status, time.strftime("%Y-%m-%d %H:%M:%S"), reason])
+                        else:
+                            print("\n[CRITICAL ERROR] SAVING: The website rejected the save or timed out!")
                             error_reason = "Save operation timed out (server took too long)"
-                            if "Timeout" not in str(save_err):
-                                error_reason = "Save operation failed or rejected by server"
-                                
+                            
                             try:
                                 toasts = page.locator('.Toastify__toast, .toast, .alert, .swal-modal, .modal-content').all_inner_texts()
                                 if toasts:
@@ -316,13 +452,22 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     
                 except KeyboardInterrupt:
                     print(f"\n[INTERRUPTED] Upload interrupted by user (Ctrl+C) on [Absolute #{q.absolute_index}]!")
-                    fail_count += 1
-                    with open(log_file, "a", encoding="utf-8", newline="") as f:
-                        writer = csv.writer(f)
-                        writer.writerow([current_docx_name, q.absolute_index, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), "User interrupted (Ctrl+C)"])
                     print("\n[ABORT] Stopping all remaining batches due to user interrupt.")
-                    browser.close()
-                    return
+                    
+                    try:
+                        # Capture exactly what is on the screen right now (inside the course)
+                        Path("screenshots").mkdir(exist_ok=True)
+                        dt_str = time.strftime("%Y-%m-%d_%H-%M-%S")
+                        interrupt_path = f"screenshots/interrupted_abs{q.absolute_index}_{dt_str}.png"
+                        page.screenshot(path=interrupt_path, full_page=True)
+                        print(f"Captured screenshot of current state: {interrupt_path}")
+                    except Exception:
+                        print("Could not capture interrupt screenshot.")
+                        
+                    batch_success = False
+                    batch_error_reason = "User interrupted (Ctrl+C)"
+                    user_aborted = True
+                    break
                 except Exception as e:
                     error_msg = str(e)
                     if "Timeout" in error_msg:
@@ -331,7 +476,8 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     batch_success = False
                     batch_error_reason = error_msg
                     Path("screenshots").mkdir(exist_ok=True)
-                    page.screenshot(path=f"screenshots/failed_abs{q.absolute_index}_q{q.question_number}.png")
+                    dt_str = time.strftime("%Y-%m-%d_%H-%M-%S")
+                    page.screenshot(path=f"screenshots/failed_abs{q.absolute_index}_{dt_str}.png")
                     break
 
             # Handle the result of the chunk upload
@@ -348,18 +494,19 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                         failed_questions_list.append(failed_q.absolute_index)
                 
                 break # Abort the rest of the chunks
+                
+        take_final_screenshot(page, config, success_count)
 
         total_seconds = int(time.time() - start_time)
         mins, secs = divmod(total_seconds, 60)
         time_str = f"{mins} mins {secs} secs" if mins > 0 else f"{secs} secs"
-        
-        print(f"\n=================================")
-        print(f"UPLOAD COMPLETE")
-        print(f"=================================")
+        print("\n=================================")
+        print("UPLOAD COMPLETE")
+        print("=================================")
         print(f"Success: {success_count}")
         print(f"Failed: {fail_count}")
         if fail_count > 0:
             print(f"Failed Question Numbers: {failed_questions_list}")
         print(f"Time Taken: {time_str}")
-        print(f"=================================\n")
+        print("=================================\n")
         browser.close()

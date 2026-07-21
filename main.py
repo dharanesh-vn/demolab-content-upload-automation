@@ -17,6 +17,15 @@ def get_letter_input(prompt_text):
             return val
         print("Invalid input. Please enter letters, spaces, and commas only.")
 
+def get_required_input(prompt_text, strip=True):
+    while True:
+        raw_val = input(prompt_text)
+        val = raw_val.strip() if strip else raw_val
+        # Check if it has any non-whitespace characters if strip is True, or just length if False
+        if (strip and val) or (not strip and raw_val):
+            return val
+        print("⚠️ This field is required! Please do not leave it blank.")
+
 def get_number_input(prompt_text):
     while True:
         val = input(prompt_text).strip()
@@ -114,34 +123,39 @@ def main():
         print("No valid questions found in docx.")
         return
         
-    print(f"\n=====================================")
+    print("\n=====================================")
     print(f"Total Questions Extracted: {len(validated_questions)}")
-    print(f"=====================================")
+    print("=====================================")
     for q in validated_questions:
         att_status = f"[Attachment] {q.attachment_filename}" if q.attachment_filename else "No Attachment"
         print(f"Q{q.question_number}: {q.title[:40]:<42} | {att_status}")
-    print(f"=====================================\n")
+    print("=====================================\n")
     
     print("\n--- Navigation Setup ---")
-    subj_choice = input("Select Subject Type (0 for Academic, 1 for Programming Subjects): ").strip()
+    while True:
+        subj_choice = input("Select Subject Type (0 for Academic, 1 for Programming Subjects): ").strip()
+        if subj_choice in ['0', '1']:
+            break
+        print("⚠️ Please enter either 0 or 1.")
+        
     config["subject_type"] = "academic" if subj_choice == "0" else "programming"
     
-    course_name = input("Enter Course Name (Case Sensitive, e.g. 'Assign testing dot'): ").strip()
-    if course_name:
-        config["course_name"] = course_name
-        
-    module_name = input("Enter Module Name (Case Sensitive, e.g. 'Sample 02'): ").strip()
-    if module_name:
-        config["module_name"] = module_name
+    config["course_name"] = get_required_input("Enter Course Name (Case Sensitive, e.g. 'SKASC - Mathematics - I'): ")
+    config["module_name"] = get_required_input("Enter Module Name (Case Sensitive, e.g. 'Probability'): ")
         
     print("\n--- Form Field Setup ---")
-    bulk_mode = input("Is this a Bulk Multi-Module Upload with dynamic tags? (Y/N): ").strip().upper()
+    while True:
+        bulk_mode = input("Is this a Bulk Multi-Module Upload with dynamic tags? (Y/N): ").strip().upper()
+        if bulk_mode in ['Y', 'N']:
+            break
+        print("⚠️ Please enter Y or N.")
+        
     if bulk_mode == 'Y':
         q_per_mod = int(get_number_input("Questions per module (e.g. 60): "))
-        base_tag = input("Enter Base Tag prefix (e.g. 'module '): ")
+        base_tag = get_required_input("Enter Base Tag prefix (e.g. 'module '): ", strip=False)
         tags = ""
     else:
-        tags_raw = input("Enter Tags (e.g. 'Python'): ").strip()
+        tags_raw = get_required_input("Enter Tags (e.g. 'Python'): ")
         tags = ", ".join([t.strip() for t in tags_raw.split(",") if t.strip()]) if tags_raw else ""
     
     # Constant values
@@ -196,29 +210,57 @@ def main():
     while True:
         try:
             print(f"\nReading updated data from {csv_file}...")
+            if not os.path.exists(csv_file):
+                print(f"[ERROR] The file '{csv_file}' was not found! Did you delete or rename it?")
+                input("Please restore the file and press Enter to try again...")
+                continue
+                
             with open(csv_file, "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
+                reader = list(csv.DictReader(f))
+                
+                if not reader:
+                    print(f"[ERROR] The file '{csv_file}' is completely empty!")
+                    input("Please populate the file in Excel, save it, and press Enter to try again...")
+                    continue
+                    
+                # Validate that critical fields aren't completely blank
+                validation_failed = False
                 for i, row in enumerate(reader):
                     if i < len(validated_questions):
                         q = validated_questions[i]
-                        q.title = row["Question Title"]
-                        q.difficulty = row["Difficulty Level"]
-                        q.tags = row["Tags"]
-                        q.language = row["Language"]
+                        
+                        title = (row.get("Question Title") or "").strip()
+                        question_text = (row.get("Question") or "").strip()
+                        
+                        if not title or not question_text:
+                            print(f"[ERROR] Row {i+2} in CSV is missing required fields (Title or Question text).")
+                            validation_failed = True
+                            break
+                            
+                        q.title = title
+                        q.difficulty = (row.get("Difficulty Level") or "Medium").strip()
+                        q.tags = (row.get("Tags") or "").strip()
+                        q.language = (row.get("Language") or "English").strip()
                         try:
-                            q.actual_time_minutes = int(row["Actual time"])
+                            q.actual_time_minutes = int(row.get("Actual time") or 0)
                         except ValueError:
                             q.actual_time_minutes = 0
-                        q.question_text = row["Question"]
-                        att = row["Attachment name"].strip()
+                        q.question_text = question_text
+                        att = (row.get("Attachment name") or "").strip()
                         q.attachment_filename = att if att else None
-                        q.user_response_acceptance = row["User Response Acceptance"].strip() if row["User Response Acceptance"].strip() else "PDF, Images"
-            break # Exit the loop if file was read successfully
+                        ura = (row.get("User Response Acceptance") or "").strip()
+                        q.user_response_acceptance = ura if ura else "PDF, Images"
+                        
+            if validation_failed:
+                input("Please fix the empty fields in Excel, save the file, and press Enter to try again...")
+                continue
+                
+            break # Exit the loop if file was read and validated successfully
         except PermissionError:
             print(f"\n[ERROR] '{csv_file}' is currently locked by another program (like Excel).")
             input("Please close the file in Excel and press Enter to try reading it again...")
                 
-    print(f"\n=====================================")
+    print("\n=====================================")
     
     while True:
         try:
@@ -279,6 +321,9 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        import sys
-        print("\n\n[INTERRUPTED] Script interrupted by user (Ctrl+C). Exiting gracefully...")
-        sys.exit(0)
+        try:
+            print("\n\n[INTERRUPTED] Script interrupted by user (Ctrl+C). Exiting instantly...")
+        except KeyboardInterrupt:
+            pass
+        finally:
+            os._exit(1)

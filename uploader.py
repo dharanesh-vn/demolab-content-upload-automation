@@ -14,7 +14,42 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
     success_count = 0
     fail_count = 0
     failed_questions_list = []
+    global_similar_report = []
     start_time = time.time()
+    
+    def print_final_summary_report(is_abort=False, current_chunk=None):
+        total_seconds = int(time.time() - start_time)
+        mins, secs = divmod(total_seconds, 60)
+        time_str = f"{mins} mins {secs} secs" if mins > 0 else f"{secs} secs"
+        print("\n=================================")
+        if is_abort:
+            print("UPLOAD ABORTED (Ctrl+C)")
+        else:
+            print("UPLOAD COMPLETE")
+        print("=================================")
+        print(f"Success: {success_count}")
+        if is_abort:
+            print(f"Failed (incl. aborted batch): {fail_count + len(current_chunk)}")
+        else:
+            print(f"Failed: {fail_count}")
+            if fail_count > 0:
+                print(f"Failed Question Numbers: {failed_questions_list}")
+        print(f"Time Taken: {time_str}")
+        print("=================================\n")
+        
+        print("--- Similar Questions Report ---")
+        if not global_similar_report:
+            print("No similar questions were detected during this run.")
+        else:
+            for idx, report in enumerate(global_similar_report):
+                print(f"Batch {idx + 1} (Q{report['start']} to Q{report['end']}):")
+                if not report['similar_indexes']:
+                    print("  None")
+                else:
+                    for q_idx in report['similar_indexes']:
+                        print(f"  -> Q{q_idx} matched DB Title: '{report['similar_details'].get(q_idx, 'Unknown')}'")
+        print("--------------------------------\n")
+
     # Clear old screenshots
     import shutil
     screenshots_dir = Path("screenshots")
@@ -76,6 +111,9 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
             body_text = page.locator('body').inner_text().lower()
             if "invalid password" in body_text or "invalid credentials" in body_text or "wrong" in body_text:
                 print("\n[ERROR] Login Failed: Incorrect Password or Username entered!")
+                Path("screenshots").mkdir(exist_ok=True)
+                dt_str = time.strftime("%Y-%m-%d_%H-%M-%S")
+                page.screenshot(path=f"screenshots/login_failed_credentials_{dt_str}.png")
                 browser.close()
                 return
             else:
@@ -99,6 +137,9 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
             body_text = page.locator('body').inner_text().lower()
             if "invalid otp" in body_text or "wrong otp" in body_text or "expired" in body_text:
                 print("\n[ERROR] Login Failed: Incorrect or Expired OTP entered!")
+                Path("screenshots").mkdir(exist_ok=True)
+                dt_str = time.strftime("%Y-%m-%d_%H-%M-%S")
+                page.screenshot(path=f"screenshots/login_failed_otp_{dt_str}.png")
                 browser.close()
                 return
             else:
@@ -163,11 +204,14 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 page_obj.screenshot(path=screenshot_path, full_page=True)
                 print(f"[VERIFICATION] Saved screenshot of the module page to: {screenshot_path}")
                 
-            except Exception:
-                print("[WARNING] Could not complete UI verification (navigation failed).")
+            except Exception as e:
+                print(f"[WARNING] Could not complete UI verification (navigation failed). Reason: {e}")
+                Path("screenshots").mkdir(exist_ok=True)
+                dt_str = time.strftime("%Y-%m-%d_%H-%M-%S")
+                page_obj.screenshot(path=f"screenshots/ui_verification_failed_{dt_str}.png")
         
         # Process questions in chunks
-        chunk_size = 15
+        chunk_size = 20
         user_aborted = False
         for chunk_start in range(0, len(questions_to_upload), chunk_size):
             if user_aborted:
@@ -369,7 +413,8 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                         
                         save_success = False
                         confirm_handled = False
-                        duplicate_indexes = []
+                        similar_indexes = []
+                        similar_details = {}
                         
                         # Wait up to 60 seconds for the save button to hide
                         for wait_idx in range(60):
@@ -377,32 +422,48 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                                 save_success = True
                                 break
                                 
-                            # Check if the duplicate confirm popup appeared
+                            # Check if the similar confirm popup appeared
                             try:
-                                confirm_btn = page.locator('button:has-text("Confirm")').first
+                                confirm_btn = page.locator('button:has-text("Save Anyway"), button:has-text("Confirm")').first
                                 if confirm_btn.is_visible():
                                     if not confirm_handled:
-                                        print("\n[WARNING] Server detected similar/duplicate questions!")
+                                        print("\n[WARNING] Server detected similar questions!")
                                         
-                                        # Scrape duplicate titles from modal before confirming
+                                        # Scrape similar titles from modal before confirming
                                         try:
                                             modal_text = page.locator('body').inner_text()
                                             
-                                            for pq in pending_success:
-                                                # Check if the question title exists in the modal text
-                                                clean_title = pq.title.strip()
-                                                if len(clean_title) > 30:
-                                                    clean_title = clean_title[:30]
+                                            blocks = modal_text.split("Question: ")
+                                            for block in blocks[1:]:
+                                                lines = [line.strip() for line in block.split('\n') if line.strip()]
+                                                if not lines:
+                                                    continue
                                                     
-                                                if clean_title in modal_text:
-                                                    duplicate_indexes.append(pq.absolute_index)
+                                                our_title_extracted = lines[0].lower()
+                                                
+                                                db_title = "Unknown DB Entry"
+                                                if "Similar Existing Titles:" in lines:
+                                                    idx = lines.index("Similar Existing Titles:")
+                                                    if idx + 1 < len(lines):
+                                                        db_title = lines[idx + 1].lstrip("•*- ").strip()
+                                                        
+                                                for pq in pending_success:
+                                                    clean_title = pq.title.strip().lower()
+                                                    if clean_title[:20] in our_title_extracted or our_title_extracted[:20] in clean_title:
+                                                        if pq.absolute_index not in similar_indexes:
+                                                            similar_indexes.append(pq.absolute_index)
+                                                            similar_details[pq.absolute_index] = db_title
+                                                        break
                                                     
-                                            if duplicate_indexes:
-                                                print(f"Identified duplicates at Abs Indexes: {duplicate_indexes}")
+                                            if similar_indexes:
+                                                print(f"Identified similar questions at Abs Indexes: {similar_indexes}")
+                                                for idx in similar_indexes:
+                                                    print(f"  -> Q{idx} matched DB Title: '{similar_details[idx]}'")
                                         except Exception as parse_e:
-                                            print(f"Could not parse duplicate titles: {parse_e}")
+                                            print(f"Could not parse similar titles: {parse_e}")
                                             
-                                        print("Clicking 'Confirm' to automatically bypass and force upload...")
+                                        btn_text = confirm_btn.inner_text().strip()
+                                        print(f"Clicking '{btn_text}' to automatically bypass and force upload...")
                                         confirm_btn.click(force=True)
                                         confirm_handled = True
                                         page.wait_for_timeout(2000) # Give it time to process the confirm
@@ -415,14 +476,23 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                         if save_success:
                             print("[SUCCESS] Upload process completed successfully and questions were saved!")
                             success_count += len(pending_success)
+                            
+                            global_similar_report.append({
+                                'start': chunk[0].absolute_index,
+                                'end': chunk[-1].absolute_index,
+                                'similar_indexes': similar_indexes.copy(),
+                                'similar_details': similar_details.copy()
+                            })
+                            
                             with open(log_file, "a", encoding="utf-8", newline="") as f:
                                 writer = csv.writer(f)
                                 for completed_q in pending_success:
                                     status = "success"
                                     reason = ""
-                                    if completed_q.absolute_index in duplicate_indexes:
-                                        status = "success (duplicate warning)"
-                                        reason = "Server flagged as similar/duplicate"
+                                    if completed_q.absolute_index in similar_indexes:
+                                        status = "success (similar warning)"
+                                        db_match = similar_details.get(completed_q.absolute_index, "Unknown DB Entry")
+                                        reason = f"Server flagged as similar to DB entry: '{db_match}'"
                                     writer.writerow([current_docx_name, completed_q.absolute_index, status, time.strftime("%Y-%m-%d %H:%M:%S"), reason])
                         else:
                             print("\n[CRITICAL ERROR] SAVING: The website rejected the save or timed out!")
@@ -434,8 +504,8 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                                     error_reason = "Server Message: " + " | ".join([t.replace('\n', ' ') for t in toasts])
                                 else:
                                     body_text = page.locator('body').inner_text().lower()
-                                    if "already exist" in body_text or "duplicate" in body_text or "similar question" in body_text:
-                                        error_reason = "Duplicate question detected by server"
+                                    if "already exist" in body_text or "similar question" in body_text:
+                                        error_reason = "Similar question detected by server"
                             except Exception:
                                 pass
                                 
@@ -454,20 +524,18 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     print(f"\n[INTERRUPTED] Upload interrupted by user (Ctrl+C) on [Absolute #{q.absolute_index}]!")
                     print("\n[ABORT] Stopping all remaining batches due to user interrupt.")
                     
+                    # Log the failed batch to CSV before hard exiting
                     try:
-                        # Capture exactly what is on the screen right now (inside the course)
-                        Path("screenshots").mkdir(exist_ok=True)
-                        dt_str = time.strftime("%Y-%m-%d_%H-%M-%S")
-                        interrupt_path = f"screenshots/interrupted_abs{q.absolute_index}_{dt_str}.png"
-                        page.screenshot(path=interrupt_path, full_page=True)
-                        print(f"Captured screenshot of current state: {interrupt_path}")
-                    except Exception:
-                        print("Could not capture interrupt screenshot.")
+                        with open(log_file, "a", encoding="utf-8", newline="") as f:
+                            writer = csv.writer(f)
+                            for failed_q in chunk:
+                                writer.writerow([current_docx_name, failed_q.absolute_index, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), "User interrupted (Ctrl+C)"])
+                    except Exception as e:
+                        print(f"Could not write to run_log.csv: {e}")
                         
-                    batch_success = False
-                    batch_error_reason = "User interrupted (Ctrl+C)"
-                    user_aborted = True
-                    break
+                    # Print summary statistics manually before hard kill
+                    print_final_summary_report(is_abort=True, current_chunk=chunk)
+                    os._exit(1)
                 except Exception as e:
                     error_msg = str(e)
                     if "Timeout" in error_msg:
@@ -496,17 +564,5 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 break # Abort the rest of the chunks
                 
         take_final_screenshot(page, config, success_count)
-
-        total_seconds = int(time.time() - start_time)
-        mins, secs = divmod(total_seconds, 60)
-        time_str = f"{mins} mins {secs} secs" if mins > 0 else f"{secs} secs"
-        print("\n=================================")
-        print("UPLOAD COMPLETE")
-        print("=================================")
-        print(f"Success: {success_count}")
-        print(f"Failed: {fail_count}")
-        if fail_count > 0:
-            print(f"Failed Question Numbers: {failed_questions_list}")
-        print(f"Time Taken: {time_str}")
-        print("=================================\n")
+        print_final_summary_report(is_abort=False)
         browser.close()

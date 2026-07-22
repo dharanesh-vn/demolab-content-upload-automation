@@ -88,7 +88,8 @@ def parse_docx(file_path: str) -> List[Dict]:
                         attachment = attachment.replace("Attachment:", "").strip()
                         
                     user_response_text = element.rows[3].cells[0].text.strip()
-                    user_response_acceptance = user_response_text.replace("User Response Acceptance:", "").strip()
+                    # Hardcoded to "Word, PDF, Images" per user request
+                    user_response_acceptance = "Word, PDF, Images"
                     
                     submission_instructions = element.rows[4].cells[0].text.strip()
                     submission_instructions = submission_instructions.replace("Submit:", "").strip()
@@ -135,7 +136,7 @@ def parse_docx(file_path: str) -> List[Dict]:
                         "question_text": q_text,
                         "attachment_filename": attachment,
                         "submission_instructions": submission_instructions,
-                        "user_response_acceptance": "PDF, Images",
+                        "user_response_acceptance": "Word, PDF, Images",
                         "tags": current_section_tag
                     })
     for i, q in enumerate(questions):

@@ -23,8 +23,8 @@ Open VS Code, click **Terminal -> New Terminal** at the top, select **Git Bash**
 
 ```bash
 # Clone the repository
-git clone https://github.com/dharanesh-vn/demolab-content-upload-automation
-cd demolab-content-upload-automation
+git clone https://github.com/dharanesh-vn/dotlab-content-upload-automation
+cd dotlab-content-upload-automation
 
 # Upgrade pip to avoid installation errors
 python -m pip install --upgrade pip
@@ -38,7 +38,7 @@ python -m playwright install chromium
 
 **3. Configure Credentials**
 This script requires your Amypo login credentials to run.
-1. In VS Code, open the `.env` file located in the project folder.
+1. In VS Code, duplicate the `.env.example` file and rename the copy to `.env`.
 2. Replace the placeholder email and password with your actual Amypo login:
 ```
 AMYPO_USERNAME=your_email_here@example.com
@@ -49,20 +49,20 @@ AMYPO_PASSWORD=your_password_here
 
 If your teammates encounter errors while running the uploads, here is the official diagnostic guide:
 
-### 1. "Duplicate question detected by server"
-* **Symptom:** The terminal prints `[BATCH FAILED]` and the reason is a duplicate question.
-* **Reason:** The Amypo server scans the question database. If someone else already uploaded that exact question (or if a previous script run got cut off halfway), the server rejects it to prevent duplicates.
-* **Optimal Solution:** The script intentionally aborts to protect your data. Look at the terminal output to see which chunk failed (e.g., Q61 to Q120). Open `questions_review.csv`, delete or fix the duplicate questions, and then run `python main.py` again, starting from Q61.
+### 1. "Similar question detected by server"
+* **Symptom:** A warning popup appears saying a similar question already exists.
+* **Reason:** The Amypo server scans the database and flags if a very similar question title is found.
+* **Optimal Solution:** This is now **fully automated**! The script will automatically scrape the database's existing question title from the popup, pair it with our question, hit the "Save Anyway" bypass button, and print a full "Similar Questions Report" at the very end of your run so you have a perfect audit trail!
 
 ### 2. "Timeout 60000ms exceeded ... waiting for locator"
 * **Symptom:** A batch of questions takes an incredibly long time (e.g., 27 minutes) and eventually crashes with a timeout.
 * **Reason:** This is called **DOM Lag**. If the batch size is set too high (e.g., 60), Playwright is forced to load 60 massive Rich Text Editors on a single web page. This exhausts the browser's memory, causing every keystroke to lag until it completely freezes and times out.
-* **Optimal Solution:** This was permanently fixed in our latest update! We reduced the `chunk_size` from 60 down to **15**. This keeps the browser memory perfectly clean and lightning-fast. **Ensure you run `git pull`** to get the latest code!
+* **Optimal Solution:** This was permanently fixed in our latest update! We reduced the `chunk_size` down to **20**. This keeps the browser memory perfectly clean and lightning-fast. **Ensure you run `git pull`** to get the latest code!
 
 ### 3. Traceback Crash on `page.locator('text=Add Questions').first.click()`
 * **Symptom:** After finishing one batch, the script crashes while trying to start the next batch.
 * **Reason:** After the server saves a massive batch of questions, the script navigates back to the Question Bank. If the server is slow, the page may not have fully rendered the "Add Questions" button yet, causing Playwright to click empty space or crash.
-* **Optimal Solution:** Lowering the `chunk_size` to 15 (via `git pull`) prevents the server from hanging, meaning the page loads instantly and this error disappears.
+* **Optimal Solution:** Lowering the `chunk_size` to 20 (via `git pull`) prevents the server from hanging, meaning the page loads instantly and this error disappears.
 
 ### 4. `AttributeError: '_UnixSelectorEventLoop' object has no attribute '_closed'`
 * **Symptom:** The script crashes instantly with a `segmentation fault` when you run `python main.py`.
@@ -70,11 +70,11 @@ If your teammates encounter errors while running the uploads, here is the offici
 * **Optimal Solution:** Downgrade to Python 3.12 (`brew install python@3.12`) and run the script using `python3.12 main.py`.
 
 ## Configuration (`config.json`)
-Make sure your URLs point to the correct environment. For testing, we use the `demolab` servers.
+Make sure your URLs point to the correct environment. For testing, we use the `dotlab` servers.
 ```json
 {
-  "login_url": "https://demolab.amypo.ai/login",
-  "question_bank_url": "https://demolab.amypo.ai/question-bank"
+  "login_url": "https://dotlab.amypo.ai/login",
+  "question_bank_url": "https://dotlab.amypo.ai/question-bank"
 }
 ```
 

@@ -211,16 +211,19 @@ def main():
         try:
             print(f"\nReading updated data from {csv_file}...")
             if not os.path.exists(csv_file):
-                print(f"[ERROR] The file '{csv_file}' was not found! Did you delete or rename it?")
-                input("Please restore the file and press Enter to try again...")
+                print(f"\n[ERROR] Missing File: The file '{csv_file}' was not found in the directory.")
+                print("Did you accidentally delete, move, or rename it?")
+                input("--> Please restore the file to its original location and press Enter to try again: ")
                 continue
                 
             with open(csv_file, "r", encoding="utf-8") as f:
                 reader = list(csv.DictReader(f))
                 
                 if not reader:
-                    print(f"[ERROR] The file '{csv_file}' is completely empty!")
-                    input("Please populate the file in Excel, save it, and press Enter to try again...")
+                    print(f"\n[ERROR] Empty File: The '{csv_file}' has no data inside it!")
+                    print("It looks like all the rows and headers were accidentally deleted.")
+                    print("You must have data in this file for the script to continue.")
+                    input("--> Please fix the file in Excel, save your changes, and press Enter to try again: ")
                     continue
                     
                 # Validate that critical fields aren't completely blank
@@ -233,7 +236,9 @@ def main():
                         question_text = (row.get("Question") or "").strip()
                         
                         if not title or not question_text:
-                            print(f"[ERROR] Row {i+2} in CSV is missing required fields (Title or Question text).")
+                            print(f"\n[ERROR] Missing Data at Row {i+2}:")
+                            print("Either the 'Question Title' or the 'Question' text column is completely blank.")
+                            print("Amypo requires every question to have both a title and a body text.")
                             validation_failed = True
                             break
                             
@@ -252,13 +257,13 @@ def main():
                         q.user_response_acceptance = ura if ura else "PDF, Images"
                         
             if validation_failed:
-                input("Please fix the empty fields in Excel, save the file, and press Enter to try again...")
+                input("--> Please open the CSV in Excel, fill in the missing data for that row, save the file, and press Enter to try again: ")
                 continue
                 
             break # Exit the loop if file was read and validated successfully
         except PermissionError:
-            print(f"\n[ERROR] '{csv_file}' is currently locked by another program (like Excel).")
-            input("Please close the file in Excel and press Enter to try reading it again...")
+            print(f"\n[ERROR] Locked File: '{csv_file}' is currently locked by another program (like Excel).")
+            input("--> Please close the file in Excel and press Enter to try reading it again: ")
                 
     print("\n=====================================")
     
@@ -269,10 +274,15 @@ def main():
                 print("Starting number must be 1 or greater.")
                 continue
                 
-            end_q = int(input(f"Enter the ending Absolute Index number to upload (e.g. {len(validated_questions)}): ").strip())
+            max_index = max(q.absolute_index for q in validated_questions)
+            end_q = int(input(f"Enter the ending Absolute Index number to upload (e.g. {max_index}): ").strip())
             if end_q < start_q:
                 print(f"Ending number ({end_q}) cannot be less than starting number ({start_q}).")
                 continue
+                
+            if end_q > max_index:
+                print(f"Warning: Highest available question index is {max_index}. Capping end index to {max_index}.")
+                end_q = max_index
                 
             break
         except ValueError:
@@ -309,7 +319,9 @@ def main():
         else:
             q.resolved_attachment_path = None
 
-    print(f"\nStarting uploader for {len(questions_to_upload)} questions (Q{start_q} to Q{end_q})...")
+    actual_start = questions_to_upload[0].absolute_index
+    actual_end = questions_to_upload[-1].absolute_index
+    print(f"\nStarting uploader for {len(questions_to_upload)} questions (Q{actual_start} to Q{actual_end})...")
     
     run_uploader(
         questions=questions_to_upload,

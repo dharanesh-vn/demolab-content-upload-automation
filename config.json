@@ -1,4 +1,14 @@
 {
   "login_url": "https://dotlab.amypo.ai/login",
-  "question_bank_url": "https://dotlab.amypo.ai/question-bank"
+  "question_bank_url": "https://dotlab.amypo.ai/question-bank",
+  "course_name": "demo",
+  "module_name": "Module 1",
+  "docx_path": "",
+  "attachments_root": "",
+  "default_difficulty": "easy",
+  "default_actual_time_minutes": 45,
+  "default_tags": "modules",
+  "otp_wait_timeout_ms": 120000,
+  "language": "assignment",
+  "subject_type": "programming"
 }

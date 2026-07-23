@@ -43,9 +43,16 @@ def main():
         print("Please set your real AMYPO_USERNAME and AMYPO_PASSWORD in the .env file.")
         return
 
-    # Load config
-    with open("config.json", "r") as f:
-        config = json.load(f)
+    # Load config safely
+    try:
+        with open("config.json", "r") as f:
+            config = json.load(f)
+    except FileNotFoundError:
+        print("\n[ERROR] 'config.json' file is missing! Please make sure it exists in the same folder as this script.")
+        return
+    except json.JSONDecodeError:
+        print("\n[ERROR] 'config.json' is corrupted or contains invalid JSON formatting. Please check it for syntax errors.")
+        return
         
     print("\n=======================================================")
     print("Please select the Assignment Word Document (.docx) from the popup window...")

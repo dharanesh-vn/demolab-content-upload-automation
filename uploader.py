@@ -563,6 +563,6 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 
                 break # Abort the rest of the chunks
                 
-        take_final_screenshot(page, config, success_count)
+        # Skip UI verification to save time as requested by user
         print_final_summary_report(is_abort=False)
         browser.close()

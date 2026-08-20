@@ -427,7 +427,13 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                         
                         # Wait up to 60 seconds for the save button to hide
                         for wait_idx in range(60):
+                            # Success condition 1: Save Questions button is hidden
                             if page.locator('button', has_text='Save Questions').first.is_hidden():
+                                save_success = True
+                                break
+                                
+                            # Success condition 2: The UI transitioned back to the Question Bank list view
+                            if page.locator('input[placeholder="Search for Questions..."]').first.is_visible():
                                 save_success = True
                                 break
                                 

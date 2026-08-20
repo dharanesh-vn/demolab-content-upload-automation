@@ -294,7 +294,8 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
             page.wait_for_timeout(1000)
             # Wait for the configuration form to appear
             expect(page.get_by_text("Project Questions Configuration")).to_be_visible(timeout=10000)
-            page.wait_for_load_state("networkidle")
+            # This is a single-page app, so background requests may prevent networkidle indefinitely.
+            page.wait_for_timeout(500)
         
 
             form_index = 0
@@ -308,9 +309,9 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     # 1. Fill Title
                     page.locator('input[name="question_title"]').nth(form_index).fill(q.title[:150])
                 
-                    # Determine dropdown offsets based on subject type
+                    # Academic and programming forms both contain Difficulty, Tags, and Language.
                     is_prog = config.get("subject_type") == "programming"
-                    dropdowns_per_form = 3 if is_prog else 2
+                    dropdowns_per_form = 3
                 
                     # 2. Select Difficulty
                     diff_input = page.locator('input.select__input').nth(form_index * dropdowns_per_form + 0)
@@ -342,21 +343,20 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     if tag_input.input_value() != "":
                         raise ValueError(f"Failed to select Tag '{q.tags}'.")
                 
-                    # 4. Select Language (Only for Programming Subjects)
-                    if is_prog:
-                        lang_input = page.locator('input.select__input').nth(form_index * dropdowns_per_form + 2)
-                        lang_input.click(force=True)
-                        page.wait_for_timeout(100)
-                        lang_input.fill(q.language)
-                        page.wait_for_timeout(300)
-                        if page.locator('text="No options"').is_visible():
-                            raise ValueError(f"Language '{q.language}' does not exist in the system (No options found).")
-                        page.keyboard.press("ArrowDown")
-                        page.wait_for_timeout(50)
-                        page.keyboard.press("Enter")
-                        page.wait_for_timeout(100)
-                        if lang_input.input_value() != "":
-                            raise ValueError(f"Failed to select Language '{q.language}'.")
+                    # 4. Select Language
+                    lang_input = page.locator('input.select__input').nth(form_index * dropdowns_per_form + 2)
+                    lang_input.click(force=True)
+                    page.wait_for_timeout(100)
+                    lang_input.fill(q.language)
+                    page.wait_for_timeout(300)
+                    if page.locator('text="No options"').is_visible():
+                        raise ValueError(f"Language '{q.language}' does not exist in the system (No options found).")
+                    page.keyboard.press("ArrowDown")
+                    page.wait_for_timeout(50)
+                    page.keyboard.press("Enter")
+                    page.wait_for_timeout(100)
+                    if lang_input.input_value() != "":
+                        raise ValueError(f"Failed to select Language '{q.language}'.")
                 
                     # 5. Actual time
                     page.locator('input[name="actualTime"]').nth(form_index).fill(str(q.actual_time_minutes))
@@ -421,9 +421,17 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                         similar_indexes = []
                         similar_details = {}
                         
-                        # Wait up to 60 seconds for the save button to hide
+                        # The Save Questions button remains visible after a successful save.
+                        # A cleared first form is the reliable completion signal for this SPA.
                         for wait_idx in range(60):
-                            if page.locator('button', has_text='Save Questions').first.is_hidden():
+                            success_notice = page.locator(
+                                '.Toastify__toast, .toast, .alert, [role="alert"]'
+                            ).filter(has_text=re.compile(r'success|saved|added|created', re.IGNORECASE))
+                            first_title = page.locator('input[name="question_title"]').first
+                            first_title_cleared = (
+                                first_title.count() > 0 and first_title.input_value().strip() == ""
+                            )
+                            if success_notice.count() > 0 or first_title_cleared:
                                 save_success = True
                                 break
                                 
@@ -511,9 +519,13 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                             print(f"[DIAGNOSTIC] Saved screenshot of save failure to: {save_failed_screenshot}")
                             
                             try:
-                                toasts = page.locator('.Toastify__toast, .toast, .alert, .swal-modal, .modal-content').all_inner_texts()
+                                toasts = page.locator(
+                                    '.Toastify__toast, .toast, .alert, .swal-modal, .modal-content, [role="alert"]'
+                                ).all_inner_texts()
                                 if toasts:
-                                    error_reason = "Server Message: " + " | ".join([t.replace('\n', ' ') for t in toasts])
+                                    messages = [t.replace('\n', ' ').strip() for t in toasts if t.strip()]
+                                    if messages:
+                                        error_reason = "Server Message: " + " | ".join(messages)
                                 else:
                                     body_text = page.locator('body').inner_text().lower()
                                     if "already exist" in body_text or "similar question" in body_text:
@@ -573,7 +585,8 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                         writer.writerow([current_docx_name, failed_q.absolute_index, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), batch_error_reason])
                         failed_questions_list.append(failed_q.absolute_index)
                 
-                break # Abort the rest of the chunks
+                print("Continuing with the next batch. Failed questions will be available for retry from run_log.csv.")
+                continue
                 
         # Skip UI verification to save time as requested by user
         print_final_summary_report(is_abort=False)

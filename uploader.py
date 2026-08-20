@@ -308,8 +308,12 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     # 1. Fill Title
                     page.locator('input[name="question_title"]').nth(form_index).fill(q.title[:150])
                 
+                    # Determine dropdown offsets based on subject type
+                    is_prog = config.get("subject_type") == "programming"
+                    dropdowns_per_form = 3 if is_prog else 2
+                
                     # 2. Select Difficulty
-                    diff_input = page.locator('input.select__input').nth(form_index * 3 + 0)
+                    diff_input = page.locator('input.select__input').nth(form_index * dropdowns_per_form + 0)
                     diff_input.click(force=True)
                     page.wait_for_timeout(100)
                     diff_input.fill(q.difficulty)
@@ -324,7 +328,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                         raise ValueError(f"Failed to select Difficulty '{q.difficulty}'.")
                 
                     # 3. Select Tags
-                    tag_input = page.locator('input.select__input').nth(form_index * 3 + 1)
+                    tag_input = page.locator('input.select__input').nth(form_index * dropdowns_per_form + 1)
                     tag_input.click(force=True)
                     page.wait_for_timeout(100)
                     tag_input.fill(q.tags)
@@ -338,20 +342,21 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     if tag_input.input_value() != "":
                         raise ValueError(f"Failed to select Tag '{q.tags}'.")
                 
-                    # 4. Select Language
-                    lang_input = page.locator('input.select__input').nth(form_index * 3 + 2)
-                    lang_input.click(force=True)
-                    page.wait_for_timeout(100)
-                    lang_input.fill(q.language)
-                    page.wait_for_timeout(300)
-                    if page.locator('text="No options"').is_visible():
-                        raise ValueError(f"Language '{q.language}' does not exist in the system (No options found).")
-                    page.keyboard.press("ArrowDown")
-                    page.wait_for_timeout(50)
-                    page.keyboard.press("Enter")
-                    page.wait_for_timeout(100)
-                    if lang_input.input_value() != "":
-                        raise ValueError(f"Failed to select Language '{q.language}'.")
+                    # 4. Select Language (Only for Programming Subjects)
+                    if is_prog:
+                        lang_input = page.locator('input.select__input').nth(form_index * dropdowns_per_form + 2)
+                        lang_input.click(force=True)
+                        page.wait_for_timeout(100)
+                        lang_input.fill(q.language)
+                        page.wait_for_timeout(300)
+                        if page.locator('text="No options"').is_visible():
+                            raise ValueError(f"Language '{q.language}' does not exist in the system (No options found).")
+                        page.keyboard.press("ArrowDown")
+                        page.wait_for_timeout(50)
+                        page.keyboard.press("Enter")
+                        page.wait_for_timeout(100)
+                        if lang_input.input_value() != "":
+                            raise ValueError(f"Failed to select Language '{q.language}'.")
                 
                     # 5. Actual time
                     page.locator('input[name="actualTime"]').nth(form_index).fill(str(q.actual_time_minutes))
@@ -496,7 +501,14 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                                     writer.writerow([current_docx_name, completed_q.absolute_index, status, time.strftime("%Y-%m-%d %H:%M:%S"), reason])
                         else:
                             print("\n[CRITICAL ERROR] SAVING: The website rejected the save or timed out!")
-                            error_reason = "Save operation timed out (server took too long)"
+                            error_reason = "Save operation timed out (server took too long or fields are invalid)"
+                            
+                            # Capture a screenshot immediately to see validation errors / modals
+                            Path("screenshots").mkdir(exist_ok=True)
+                            dt_str = time.strftime("%Y-%m-%d_%H-%M-%S")
+                            save_failed_screenshot = f"screenshots/save_failed_{dt_str}.png"
+                            page.screenshot(path=save_failed_screenshot, full_page=True)
+                            print(f"[DIAGNOSTIC] Saved screenshot of save failure to: {save_failed_screenshot}")
                             
                             try:
                                 toasts = page.locator('.Toastify__toast, .toast, .alert, .swal-modal, .modal-content').all_inner_texts()

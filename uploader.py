@@ -305,15 +305,15 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
             for i, q in enumerate(chunk):
                 print(f"Uploading [Absolute #{q.absolute_index} | Internal Q{q.question_number}]: {q.title[:30]}...")
                 try:
-                    # 1. Fill Title
-                    page.locator('input[name="question_title"]').nth(form_index).fill(q.title[:150])
+                    # Locate the specific form block container for this question
+                    form_block = page.locator('.body.grid').nth(form_index)
                 
-                    # Determine dropdown offsets based on subject type
-                    is_prog = config.get("subject_type") == "programming"
-                    dropdowns_per_form = 3 if is_prog else 2
+                    # 1. Fill Title
+                    form_block.locator('input[name="question_title"]').fill(q.title[:150])
                 
                     # 2. Select Difficulty
-                    diff_input = page.locator('input.select__input').nth(form_index * dropdowns_per_form + 0)
+                    diff_container = form_block.locator('div:has-text("Difficulty Level")')
+                    diff_input = diff_container.locator('input.select__input').first
                     diff_input.click(force=True)
                     page.wait_for_timeout(100)
                     # Normalize to lowercase to ensure it matches case-sensitive select dropdowns (e.g., 'medium')
@@ -330,7 +330,8 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                         raise ValueError(f"Failed to select Difficulty '{q.difficulty}'.")
                 
                     # 3. Select Tags
-                    tag_input = page.locator('input.select__input').nth(form_index * dropdowns_per_form + 1)
+                    tag_container = form_block.locator('div:has-text("Tags *")')
+                    tag_input = tag_container.locator('input.select__input').first
                     tag_input.click(force=True)
                     page.wait_for_timeout(100)
                     tag_input.fill(q.tags)
@@ -344,9 +345,10 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     if tag_input.input_value() != "":
                         raise ValueError(f"Failed to select Tag '{q.tags}'.")
                 
-                    # 4. Select Language (Only for Programming Subjects)
-                    if is_prog:
-                        lang_input = page.locator('input.select__input').nth(form_index * dropdowns_per_form + 2)
+                    # 4. Select Language
+                    lang_container = form_block.locator('div:has-text("Language *")')
+                    if lang_container.count() > 0:
+                        lang_input = lang_container.locator('input.select__input').first
                         lang_input.click(force=True)
                         page.wait_for_timeout(100)
                         lang_input.fill(q.language)

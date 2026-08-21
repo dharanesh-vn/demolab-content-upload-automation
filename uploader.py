@@ -232,23 +232,27 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 break
         
             # --- Dismiss any modal overlay that may be blocking the UI ---
-            modal_overlay = page.locator('div.fixed.inset-0.z-\\[9999\\]')
-            if modal_overlay.count() > 0 and modal_overlay.first.is_visible():
-                print("Modal overlay detected — dismissing...")
-                # Try clicking the backdrop area to close it
-                backdrop = modal_overlay.locator('div.absolute.inset-0').first
-                if backdrop.is_visible():
-                    backdrop.click(force=True)
-                    page.wait_for_timeout(500)
-                # If the modal is still there, try pressing Escape
-                if modal_overlay.count() > 0 and modal_overlay.first.is_visible():
-                    page.keyboard.press("Escape")
-                    page.wait_for_timeout(500)
-                # Last resort: forcefully remove the overlay via JS
-                if modal_overlay.count() > 0 and modal_overlay.first.is_visible():
-                    print("Force-removing modal overlay via JavaScript...")
-                    page.evaluate('document.querySelector("div.fixed.inset-0[class*=z-]")?.remove()')
-                    page.wait_for_timeout(300)
+            # The website shows a full-screen modal (z-[9999]) after navigation.
+            # We use JavaScript to detect and remove it since CSS selectors struggle
+            # with Tailwind's bracket notation like z-[9999].
+            print("Checking for modal overlay...")
+            removed = page.evaluate('''() => {
+                const overlays = document.querySelectorAll('div.fixed');
+                let removed = 0;
+                for (const el of overlays) {
+                    const style = window.getComputedStyle(el);
+                    if (style.zIndex >= 9000 || el.className.includes('z-[9999]')) {
+                        el.remove();
+                        removed++;
+                    }
+                }
+                return removed;
+            }''')
+            if removed > 0:
+                print(f"Dismissed {removed} modal overlay(s) via JavaScript.")
+                page.wait_for_timeout(500)
+            else:
+                print("No modal overlay found.")
 
             # --- 2. Navigate UI exactly as requested ---
         

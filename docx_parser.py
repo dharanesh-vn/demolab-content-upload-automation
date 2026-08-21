@@ -95,7 +95,7 @@ def parse_docx(file_path: str) -> List[Dict]:
                     submission_instructions = submission_instructions.replace("Submit:", "").strip()
                     
                     if submission_instructions:
-                        q_text = f"{q_text}\n\nSubmission Method (Word/ PDF/ Images) : {submission_instructions}"
+                        q_text = f"{q_text}\n\n[SUBMISSION_SPLIT]{submission_instructions}"
                     
                     questions.append({
                         "question_number": q_num,
@@ -128,7 +128,7 @@ def parse_docx(file_path: str) -> List[Dict]:
                     submission_instructions = row3[1] if len(row3) > 1 else ""
                     
                     if submission_instructions:
-                        q_text = f"{q_text}\n\nSubmission Method (Word/ PDF/ Images) : {submission_instructions}"
+                        q_text = f"{q_text}\n\n[SUBMISSION_SPLIT]{submission_instructions}"
                     
                     # Generate a title from the first few words of the question text
                     title_words = q_text.split()[:10]

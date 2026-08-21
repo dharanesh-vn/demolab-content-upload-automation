@@ -231,6 +231,25 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 print(f"Failed at Batch: Q{chunk[0].absolute_index}")
                 break
         
+            # --- Dismiss any modal overlay that may be blocking the UI ---
+            modal_overlay = page.locator('div.fixed.inset-0.z-\\[9999\\]')
+            if modal_overlay.count() > 0 and modal_overlay.first.is_visible():
+                print("Modal overlay detected — dismissing...")
+                # Try clicking the backdrop area to close it
+                backdrop = modal_overlay.locator('div.absolute.inset-0').first
+                if backdrop.is_visible():
+                    backdrop.click(force=True)
+                    page.wait_for_timeout(500)
+                # If the modal is still there, try pressing Escape
+                if modal_overlay.count() > 0 and modal_overlay.first.is_visible():
+                    page.keyboard.press("Escape")
+                    page.wait_for_timeout(500)
+                # Last resort: forcefully remove the overlay via JS
+                if modal_overlay.count() > 0 and modal_overlay.first.is_visible():
+                    print("Force-removing modal overlay via JavaScript...")
+                    page.evaluate('document.querySelector("div.fixed.inset-0[class*=z-]")?.remove()')
+                    page.wait_for_timeout(300)
+
             # --- 2. Navigate UI exactly as requested ---
         
             # 3. Click + Add Questions tab
@@ -363,7 +382,21 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 
                     # 6. Question Text (Rich Text Editor)
                     editor = page.locator('.ProseMirror, [contenteditable="true"]').nth(form_index)
-                    editor.fill(q.question_text)
+                    if "[SUBMISSION_SPLIT]" in q.question_text:
+                        main_text, sub_inst = q.question_text.split("[SUBMISSION_SPLIT]", 1)
+                        editor.fill(main_text)
+                        editor.click()  # Ensure focus is active
+                        page.keyboard.press("End")  # Move cursor to the very end
+                        page.keyboard.press("Enter")  # Move to a new line
+
+                        # --- ProseMirror bold via Ctrl+B keyboard shortcut ---
+                        # execCommand does NOT work in ProseMirror; Ctrl+B is the correct way
+                        page.keyboard.press("Control+B")  # Turn Bold ON
+                        page.wait_for_timeout(100)
+                        page.keyboard.type(f"Submission method(word/pdf/image): {sub_inst}")
+                        page.keyboard.press("Control+B")  # Turn Bold OFF
+                    else:
+                        editor.fill(q.question_text)
                 
                     # 7. File Attachment
                     if q.attachment_filename and getattr(q, 'resolved_attachment_path', None):

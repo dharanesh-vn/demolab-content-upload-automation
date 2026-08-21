@@ -19,8 +19,8 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
     
     def print_final_summary_report(is_abort=False, current_chunk=None):
         total_seconds = int(time.time() - start_time)
-        mins, secs = divmod(total_seconds, 60)
-        time_str = f"{mins} mins {secs} secs" if mins > 0 else f"{secs} secs"
+        max_mins, max_secs = divmod(total_seconds, 60)
+        time_str = f"{max_mins} mins {max_secs} secs" if max_mins > 0 else f"{max_secs} secs"
         print("\n=================================")
         if is_abort:
             print("UPLOAD ABORTED (Ctrl+C)")
@@ -99,51 +99,92 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
         page.fill('input[name="password"], input[type="password"]', credentials["password"])
         page.click('button:has-text("Login"), button[type="submit"]')
         
-        print("Waiting for OTP input screen to render...")
+        # Quick check for immediate login credentials error (wait up to 3 seconds)
+        page.wait_for_timeout(1500) # Wait a moment for DOM/toast to update
+        body_text = page.locator('body').inner_text()
+        body_text_lower = body_text.lower()
+        
+        # Check for common login error messages
+        login_error_keywords = ["does not match", "invalid password", "invalid credentials", "wrong email", "incorrect password", "user not found", "wrong password", "does not exist", "not exist"]
+        has_error = any(kw in body_text_lower for kw in login_error_keywords)
+        
+        if has_error:
+            error_msg = "Incorrect username or password."
+            try:
+                toasts = page.locator('.Toastify__toast, .toast, .alert, [role="alert"]').all_inner_texts()
+                if toasts:
+                    error_msg = " | ".join([t.replace('\n', ' ').strip() for t in toasts if t.strip()])
+                else:
+                    # Look for input validation error elements (usually red text below inputs)
+                    match_el = page.locator('text=/does not match|invalid|incorrect|exist/i').first
+                    if match_el.is_visible():
+                        error_msg = match_el.inner_text().strip()
+            except Exception:
+                pass
+                
+            current_url = config['login_url']
+            suggested_url = "https://dotlab.amypo.ai/login" if "demolab" in current_url else "https://demolab.amypo.ai/login"
+            
+            print(f"\n[ERROR] Login Failed: {error_msg}")
+            print(f"-> Current URL in config file: {current_url}")
+            print(f"-> If you need to switch environments, change the 'login_url' in config.json to: {suggested_url}")
+            Path("screenshots").mkdir(exist_ok=True)
+            dt_str = time.strftime("%Y-%m-%d_%H-%M-%S")
+            page.screenshot(path=f"screenshots/login_failed_credentials_{dt_str}.png")
+            browser.close()
+            return
+
+        # Wait to see if we go directly to dashboard or hit the OTP screen
+        print("Waiting for login response...")
         timeout = config.get("otp_wait_timeout_ms", 120000)
-        
-        # Check for invalid password error quickly before waiting for OTP
         try:
-            # We wait a max of 2 seconds for the OTP field. If not there, we check for toasts.
-            page.wait_for_selector('input[inputmode="numeric"]', timeout=3000)
+            # Wait up to 5 seconds for either OTP input or direct URL redirection
+            page.wait_for_selector('input[inputmode="numeric"]', timeout=5000)
         except Exception:
-            # Check for error toast
-            body_text = page.locator('body').inner_text().lower()
-            if "invalid password" in body_text or "invalid credentials" in body_text or "wrong" in body_text:
-                print("\n[ERROR] Login Failed: Incorrect Password or Username entered!")
-                Path("screenshots").mkdir(exist_ok=True)
-                dt_str = time.strftime("%Y-%m-%d_%H-%M-%S")
-                page.screenshot(path=f"screenshots/login_failed_credentials_{dt_str}.png")
-                browser.close()
-                return
-            else:
-                # Still wait for the full timeout if no clear error is found
-                page.wait_for_selector('input[inputmode="numeric"]', timeout=timeout)
+            pass
+            
+        otp_required = page.locator('input[inputmode="numeric"]').count() > 0 and page.locator('input[inputmode="numeric"]').first.is_visible()
         
-        # Prompt for OTP in the terminal
-        otp = input("Enter the 6-digit OTP here: ").strip()
-        
-        # Type the OTP into the browser
-        print("Submitting OTP...")
-        # Usually clicking the first input and typing works for these split-input React components
-        page.locator('input[inputmode="numeric"]').first.click()
-        page.keyboard.type(otp)
-        
-        # Wait until we are successfully logged in (URL changes from login page)
-        print("Waiting for dashboard to load...")
-        try:
-            page.wait_for_url(lambda url: "login" not in url, timeout=3000)
-        except Exception:
-            body_text = page.locator('body').inner_text().lower()
-            if "invalid otp" in body_text or "wrong otp" in body_text or "expired" in body_text:
-                print("\n[ERROR] Login Failed: Incorrect or Expired OTP entered!")
-                Path("screenshots").mkdir(exist_ok=True)
-                dt_str = time.strftime("%Y-%m-%d_%H-%M-%S")
-                page.screenshot(path=f"screenshots/login_failed_otp_{dt_str}.png")
-                browser.close()
-                return
-            else:
-                page.wait_for_url(lambda url: "login" not in url, timeout=timeout)
+        if otp_required:
+            print("OTP screen detected. Waiting for manual entry...")
+            # Prompt for OTP in the terminal
+            otp = input("Enter the 6-digit OTP here: ").strip()
+            
+            # Type the OTP into the browser
+            print("Submitting OTP...")
+            page.locator('input[inputmode="numeric"]').first.click()
+            page.keyboard.type(otp)
+            
+            # Wait until we are successfully logged in (Dashboard element is visible)
+            print("Waiting for dashboard to load after OTP...")
+            try:
+                page.wait_for_selector('text=Dashboard', timeout=15000)
+            except Exception:
+                body_text = page.locator('body').inner_text().lower()
+                if "invalid otp" in body_text or "wrong otp" in body_text or "incorrect otp" in body_text or "incorrect" in body_text or "expired" in body_text:
+                    print("\n[ERROR] Login Failed: Incorrect or Expired OTP entered!")
+                    Path("screenshots").mkdir(exist_ok=True)
+                    dt_str = time.strftime("%Y-%m-%d_%H-%M-%S")
+                    page.screenshot(path=f"screenshots/login_failed_otp_{dt_str}.png")
+                    browser.close()
+                    return
+                else:
+                    page.wait_for_selector('text=Dashboard', timeout=timeout)
+        else:
+            print("No OTP required. Verifying direct dashboard redirection...")
+            try:
+                page.wait_for_selector('text=Dashboard', timeout=15000)
+            except Exception:
+                body_text = page.locator('body').inner_text().lower()
+                if "invalid password" in body_text or "invalid credentials" in body_text or "wrong" in body_text:
+                    print("\n[ERROR] Login Failed: Incorrect Password or Username entered!")
+                    Path("screenshots").mkdir(exist_ok=True)
+                    dt_str = time.strftime("%Y-%m-%d_%H-%M-%S")
+                    page.screenshot(path=f"screenshots/login_failed_credentials_{dt_str}.png")
+                    browser.close()
+                    return
+                else:
+                    page.wait_for_selector('text=Dashboard', timeout=timeout)
         
         page.wait_for_timeout(3000)  # Give it a moment to establish the session
         
@@ -294,7 +335,8 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
             page.wait_for_timeout(1000)
             # Wait for the configuration form to appear
             expect(page.get_by_text("Project Questions Configuration")).to_be_visible(timeout=10000)
-            page.wait_for_load_state("networkidle")
+            # This is a single-page app, so background requests may prevent networkidle indefinitely.
+            page.wait_for_timeout(500)
         
 
             form_index = 0
@@ -316,7 +358,6 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     diff_input = diff_container.locator('input.select__input').first
                     diff_input.click(force=True)
                     page.wait_for_timeout(100)
-                    # Normalize to lowercase to ensure it matches case-sensitive select dropdowns (e.g., 'medium')
                     normalized_diff = q.difficulty.lower()
                     diff_input.fill(normalized_diff)
                     page.wait_for_timeout(300)
@@ -425,15 +466,17 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                         similar_indexes = []
                         similar_details = {}
                         
-                        # Wait up to 60 seconds for the save button to hide
+                        # The Save Questions button remains visible after a successful save.
+                        # A cleared first form is the reliable completion signal for this SPA.
                         for wait_idx in range(60):
-                            # Success condition 1: Save Questions button is hidden
-                            if page.locator('button', has_text='Save Questions').first.is_hidden():
-                                save_success = True
-                                break
-                                
-                            # Success condition 2: The UI transitioned back to the Question Bank list view
-                            if page.locator('input[placeholder="Search for Questions..."]').first.is_visible():
+                            success_notice = page.locator(
+                                '.Toastify__toast, .toast, .alert, [role="alert"]'
+                            ).filter(has_text=re.compile(r'success|saved|added|created', re.IGNORECASE))
+                            first_title = page.locator('input[name="question_title"]').first
+                            first_title_cleared = (
+                                first_title.count() > 0 and first_title.input_value().strip() == ""
+                            )
+                            if success_notice.count() > 0 or first_title_cleared:
                                 save_success = True
                                 break
                                 
@@ -521,9 +564,13 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                             print(f"[DIAGNOSTIC] Saved screenshot of save failure to: {save_failed_screenshot}")
                             
                             try:
-                                toasts = page.locator('.Toastify__toast, .toast, .alert, .swal-modal, .modal-content').all_inner_texts()
+                                toasts = page.locator(
+                                    '.Toastify__toast, .toast, .alert, .swal-modal, .modal-content, [role="alert"]'
+                                ).all_inner_texts()
                                 if toasts:
-                                    error_reason = "Server Message: " + " | ".join([t.replace('\n', ' ') for t in toasts])
+                                    messages = [t.replace('\n', ' ').strip() for t in toasts if t.strip()]
+                                    if messages:
+                                        error_reason = "Server Message: " + " | ".join(messages)
                                 else:
                                     body_text = page.locator('body').inner_text().lower()
                                     if "already exist" in body_text or "similar question" in body_text:
@@ -583,7 +630,8 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                         writer.writerow([current_docx_name, failed_q.absolute_index, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), batch_error_reason])
                         failed_questions_list.append(failed_q.absolute_index)
                 
-                break # Abort the rest of the chunks
+                print("Continuing with the next batch. Failed questions will be available for retry from run_log.csv.")
+                continue
                 
         # Skip UI verification to save time as requested by user
         print_final_summary_report(is_abort=False)

@@ -406,9 +406,31 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     # 5. Actual time
                     page.locator('input[name="actualTime"]').nth(form_index).fill(str(q.actual_time_minutes))
                 
-                    # 6. Question Text (Rich Text Editor)
+                    # 6. Question Text (Rich Text Editor - Tiptap / ProseMirror)
                     editor = page.locator('.ProseMirror, [contenteditable="true"]').nth(form_index)
-                    editor.fill(q.question_text)
+                    try:
+                        injected = page.evaluate("""({ idx, html }) => {
+                            const editors = document.querySelectorAll('.ProseMirror, [contenteditable="true"]');
+                            const el = editors[idx];
+                            if (!el) return false;
+                            if (el.editor && el.editor.commands && typeof el.editor.commands.setContent === 'function') {
+                                el.editor.commands.setContent(html, true);
+                                return true;
+                            }
+                            return false;
+                        }""", {"idx": form_index, "html": q.question_text})
+                        
+                        if injected:
+                            # Perform native Playwright keypress trigger to ensure React Hook Form marks field valid
+                            editor.click(force=True)
+                            page.keyboard.press("End")
+                            page.keyboard.press("Space")
+                            page.keyboard.press("Backspace")
+                            page.wait_for_timeout(100)
+                        else:
+                            editor.fill(q.question_text)
+                    except Exception:
+                        editor.fill(q.question_text)
                 
                     # 7. File Attachment
                     if q.attachment_filename and getattr(q, 'resolved_attachment_path', None):

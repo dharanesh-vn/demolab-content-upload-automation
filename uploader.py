@@ -12,6 +12,8 @@ import time
 
 def run_uploader(questions: List[Question], config: dict, credentials: dict):
     success_count = 0
+    success_with_attachment_count = 0
+    success_without_attachment_count = 0
     fail_count = 0
     failed_questions_list = []
     global_similar_report = []
@@ -23,18 +25,21 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
         time_str = f"{max_mins} mins {max_secs} secs" if max_mins > 0 else f"{max_secs} secs"
         print("\n=================================")
         if is_abort:
-            print("UPLOAD ABORTED (Ctrl+C)")
+            print("=== UPLOAD ABORTED (Ctrl+C) ===")
         else:
-            print("UPLOAD COMPLETE")
+            print("=== UPLOAD COMPLETE ===")
         print("=================================")
-        print(f"Success: {success_count}")
+        print(f"Total Questions Uploaded : {success_count}")
+        print(f"  |-- With Attachments   : {success_with_attachment_count}")
+        print(f"  |-- Without Attachments: {success_without_attachment_count}")
         if is_abort:
-            print(f"Failed (incl. aborted batch): {fail_count + len(current_chunk)}")
+            actual_failed = fail_count + (len(current_chunk) if current_chunk else 0)
+            print(f"Failed Questions         : {actual_failed}")
         else:
-            print(f"Failed: {fail_count}")
+            print(f"Failed Questions         : {fail_count}")
             if fail_count > 0:
-                print(f"Failed Question Numbers: {failed_questions_list}")
-        print(f"Time Taken: {time_str}")
+                print(f"Failed Question Numbers  : {failed_questions_list}")
+        print(f"Total Time Taken         : {time_str}")
         print("=================================\n")
         
         print("--- Similar Questions Report ---")
@@ -57,30 +62,79 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
         shutil.rmtree(screenshots_dir)
     screenshots_dir.mkdir(exist_ok=True)
     
-    # Prepare run log
+    # Prepare enhanced run log
     log_file = Path("run_log.csv")
     completed_q_nums = set()
     current_docx_name = Path(config["docx_path"]).name
+    target_course = config.get("course_name", "").strip().lower()
+    target_module = config.get("module_name", "").strip().lower()
     
-    file_exists = log_file.exists()
-    if not file_exists:
-        # Create file with headers if it doesn't exist
+    def get_diagnostic_tag(status_str: str, reason_str: str, att_status: str) -> str:
+        s_upper = str(status_str).strip().upper()
+        r_lower = str(reason_str).strip().lower()
+        
+        if "similar" in r_lower or "bypassed" in s_upper or "similar warning" in r_lower:
+            return "[SIMILAR_DUPLICATE_BYPASSED]"
+        elif "user interrupted" in r_lower or "ctrl+c" in r_lower:
+            return "[USER_INTERRUPTED_ABORT]"
+        elif "tag" in r_lower and ("not exist" in r_lower or "no options" in r_lower):
+            return "[TAG_NOT_FOUND]"
+        elif "difficulty" in r_lower and ("not exist" in r_lower or "no options" in r_lower):
+            return "[DIFFICULTY_NOT_FOUND]"
+        elif "language" in r_lower and ("not exist" in r_lower or "no options" in r_lower):
+            return "[LANGUAGE_NOT_FOUND]"
+        elif "course" in r_lower and ("not find" in r_lower or "no options" in r_lower):
+            return "[COURSE_NOT_FOUND]"
+        elif "save" in r_lower and "button" in r_lower:
+            return "[SAVE_BUTTON_CLICK_FAILED]"
+        elif "timeout" in r_lower or "rejected" in r_lower:
+            return "[SAVE_TIMEOUT_REJECTED]"
+        elif att_status == "Missing Local File":
+            return "[ATTACHMENT_MISSING_LOCAL]"
+        elif s_upper.startswith("SUCCESS"):
+            if att_status == "Attached Successfully":
+                return "[SUCCESS_WITH_ATTACHMENT]"
+            else:
+                return "[SUCCESS_CLEAN]"
+        else:
+            return "[UNKNOWN_ERROR]"
+            
+    # 13-Column Categorized Diagnostic Log Schema:
+    enhanced_headers = [
+        "Timestamp", "Course Name", "Module Name", "Document Name", 
+        "Absolute Index", "Internal Q#", "Question Title", "Tags", 
+        "Attachment File", "Attachment Status", "Upload Status", "Diagnostic Tag", "Diagnostic Details"
+    ]
+    
+    if not log_file.exists():
         with open(log_file, "w", encoding="utf-8", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["Document Name", "Question Number", "Status", "Timestamp", "Details"])
-            
-    if log_file.exists():
+            writer.writerow(enhanced_headers)
+    else:
+        # Read existing logs to determine completed questions for THIS SPECIFIC course & module
         with open(log_file, "r", encoding="utf-8") as f:
             reader = csv.reader(f)
             for row in reader:
-                if not row:
+                if not row or row[0].startswith("---") or row[0] == "Timestamp":
                     continue
-                # New format: doc_name, question_number, status, timestamp, error
-                if len(row) >= 3 and row[0] == current_docx_name and row[2] == "success":
-                    completed_q_nums.add(int(row[1]))
-                # Legacy format fallback (no doc_name). We will assume it belongs to the current doc ONLY IF it's the exact same script session,
-                # but generally we can't trust it. To be safe and solve the module switching bug, we will ignore legacy success logs 
-                # unless they manually clear them, but we will still read them to prevent crashing.
+                # Enhanced 13-column / 12-column schema
+                if len(row) >= 11:
+                    c_name = row[1].strip().lower()
+                    m_name = row[2].strip().lower()
+                    d_name = row[3].strip()
+                    status = row[10].strip().upper()
+                    
+                    if c_name == target_course and m_name == target_module and d_name == current_docx_name and status.startswith("SUCCESS"):
+                        try:
+                            completed_q_nums.add(int(row[4]))
+                        except ValueError:
+                            pass
+                # Legacy format (5 columns: doc_name, question_num, status, timestamp, details)
+                elif len(row) >= 3 and row[0] == current_docx_name and row[2].lower() == "success":
+                    try:
+                        completed_q_nums.add(int(row[1]))
+                    except ValueError:
+                        pass
     
     with sync_playwright() as p:
         # Run headless (invisible) for maximum speed and zero visual clutter
@@ -94,9 +148,9 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
         # --- 1. Login with manual OTP ---
         print("Navigating to login URL...")
         page.goto(config["login_url"])
-        
-        page.fill('input[name="email"], input[type="email"]', credentials["username"])
-        page.fill('input[name="password"], input[type="password"]', credentials["password"])
+        page.wait_for_selector('input[name="email"]', timeout=15000)
+        page.fill('input[name="email"]', credentials["username"])
+        page.fill('input[name="password"]', credentials["password"])
         page.click('button:has-text("Login"), button[type="submit"]')
         
         # Quick check for immediate login credentials error (wait up to 3 seconds)
@@ -125,9 +179,10 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
             current_url = config['login_url']
             suggested_url = "https://dotlab.amypo.ai/login" if "demolab" in current_url else "https://demolab.amypo.ai/login"
             
-            print(f"\n[ERROR] Login Failed: {error_msg}")
-            print(f"-> Current URL in config file: {current_url}")
-            print(f"-> If you need to switch environments, change the 'login_url' in config.json to: {suggested_url}")
+            print("\n=======================================================")
+            print(f"❌ ERROR: Invalid username or password in .env ({error_msg})")
+            print(f"   Current login URL: {current_url}")
+            print("=======================================================\n")
             Path("screenshots").mkdir(exist_ok=True)
             dt_str = time.strftime("%Y-%m-%d_%H-%M-%S")
             page.screenshot(path=f"screenshots/login_failed_credentials_{dt_str}.png")
@@ -162,7 +217,9 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
             except Exception:
                 body_text = page.locator('body').inner_text().lower()
                 if "invalid otp" in body_text or "wrong otp" in body_text or "incorrect otp" in body_text or "incorrect" in body_text or "expired" in body_text:
-                    print("\n[ERROR] Login Failed: Incorrect or Expired OTP entered!")
+                    print("\n=======================================================")
+                    print("❌ ERROR: Incorrect or expired OTP entered.")
+                    print("=======================================================\n")
                     Path("screenshots").mkdir(exist_ok=True)
                     dt_str = time.strftime("%Y-%m-%d_%H-%M-%S")
                     page.screenshot(path=f"screenshots/login_failed_otp_{dt_str}.png")
@@ -171,20 +228,9 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 else:
                     page.wait_for_selector('text=Dashboard', timeout=timeout)
         else:
-            print("No OTP required. Verifying direct dashboard redirection...")
-            try:
-                page.wait_for_selector('text=Dashboard', timeout=15000)
-            except Exception:
-                body_text = page.locator('body').inner_text().lower()
-                if "invalid password" in body_text or "invalid credentials" in body_text or "wrong" in body_text:
-                    print("\n[ERROR] Login Failed: Incorrect Password or Username entered!")
-                    Path("screenshots").mkdir(exist_ok=True)
-                    dt_str = time.strftime("%Y-%m-%d_%H-%M-%S")
-                    page.screenshot(path=f"screenshots/login_failed_credentials_{dt_str}.png")
-                    browser.close()
-                    return
-                else:
-                    page.wait_for_selector('text=Dashboard', timeout=timeout)
+            print("No OTP required. Navigating directly to Question Bank...")
+            page.goto(config["question_bank_url"])
+            page.wait_for_timeout(2000)
         
         page.wait_for_timeout(3000)  # Give it a moment to establish the session
         
@@ -192,8 +238,12 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
         questions_to_upload = [q for q in questions if q.absolute_index not in completed_q_nums]
         
         if not questions_to_upload:
-            print("All questions selected have already been uploaded successfully according to the run log.")
-            print("Stopping script before making any changes or clicking save...")
+            print("\n=======================================================")
+            print(f"ℹ️  SKIP NOTICE: All {len(questions)} selected questions (Q{questions[0].absolute_index} to Q{questions[-1].absolute_index})")
+            print(f"   for Course: '{config.get('course_name', '')}' | Module: '{config.get('module_name', '')}'")
+            print("   have ALREADY been uploaded successfully according to 'run_log.csv'.")
+            print("   No duplicate questions were sent to the portal.")
+            print("=======================================================\n")
             browser.close()
             return
             
@@ -302,8 +352,9 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
             try:
                 course_loc.click(timeout=5000, force=True)
             except Exception:
-                print(f"\n❌ ERROR: Could not find Course '{course}'.")
-                print("The course may have been renamed, deleted, or its visibility restricted prior to this upload batch.")
+                print("\n=======================================================")
+                print(f"❌ WARNING: Course name not found ('{course}').")
+                print("=======================================================\n")
                 with open(log_file, "a", encoding="utf-8", newline="") as f:
                     writer = csv.writer(f)
                     for q in questions_to_upload[chunk_start:]:
@@ -318,8 +369,9 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
             try:
                 module_loc.click(timeout=5000, force=True)
             except Exception:
-                print(f"\n[ERROR] Could not find Module '{module}'.")
-                print("The module may have been renamed, deleted, or its visibility restricted prior to this upload batch.")
+                print("\n=======================================================")
+                print(f"❌ WARNING: Module name not found ('{module}').")
+                print("=======================================================\n")
                 with open(log_file, "a", encoding="utf-8", newline="") as f:
                     writer = csv.writer(f)
                     for q in questions_to_upload[chunk_start:]:
@@ -347,67 +399,93 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
             for i, q in enumerate(chunk):
                 print(f"Uploading [Absolute #{q.absolute_index} | Internal Q{q.question_number}]: {q.title[:30]}...")
                 try:
-                    # Locate the specific form block container for this question
-                    form_block = page.locator('.body.grid').nth(form_index)
-                
+                    # Locate the specific form block container for this question card
+                    title_input = page.locator('input[name="question_title"]').nth(form_index)
+                    # Find the parent card element wrapping both title and attachment input for this question
+                    card_candidate = title_input.locator('xpath=ancestor::div[.//input[@name="question_title"] and .//input[@type="file"]][1]')
+                    if card_candidate.count() > 0:
+                        form_block = card_candidate
+                    else:
+                        form_block = title_input.locator('xpath=ancestor::div[contains(@class, "relative") or contains(@class, "w-full") or contains(@class, "border")][1]')
+
                     # 1. Fill Title
-                    form_block.locator('input[name="question_title"]').fill(q.title[:150])
+                    title_input.fill(q.title[:150])
                 
+                    def select_dropdown_option(inp_el, val_text, f_name):
+                        if not val_text or not str(val_text).strip() or inp_el.count() == 0:
+                            return
+                        clean_v = str(val_text).strip()
+                        inp_el.click(force=True)
+                        page.wait_for_timeout(100)
+                        
+                        # Try different case variations: Title Case, original, capitalized, lower, upper
+                        vars_to_try = [clean_v.title(), clean_v, clean_v.capitalize(), clean_v.lower(), clean_v.upper()]
+                        unique_vars = []
+                        for v in vars_to_try:
+                            if v not in unique_vars:
+                                unique_vars.append(v)
+                                
+                        is_sel = False
+                        for v in unique_vars:
+                            inp_el.fill("")
+                            inp_el.fill(v)
+                            page.wait_for_timeout(200)
+                            
+                            if page.locator('text="No options"').is_visible():
+                                continue
+
+                            # Try clicking matching option element from dropdown list
+                            opt_items = page.locator('.select__option, [class*="-option"], div[id*="option"]').filter(
+                                has_text=re.compile(f"^{re.escape(clean_v)}$", re.IGNORECASE)
+                            )
+                            if opt_items.count() > 0:
+                                opt_items.first.click(force=True)
+                                page.wait_for_timeout(100)
+                                is_sel = True
+                                break
+                                
+                            # Fallback: keyboard navigation
+                            page.keyboard.press("ArrowDown")
+                            page.wait_for_timeout(50)
+                            page.keyboard.press("Enter")
+                            page.wait_for_timeout(100)
+                            if inp_el.input_value() == "":
+                                is_sel = True
+                                break
+
+                        if not is_sel:
+                            raise ValueError(f"❌ WARNING: {f_name} option not found ('{val_text}').")
+
                     # 2. Select Difficulty
-                    diff_container = form_block.locator('div:has-text("Difficulty Level")')
-                    diff_input = diff_container.locator('input.select__input').first
-                    diff_input.click(force=True)
-                    page.wait_for_timeout(100)
-                    normalized_diff = q.difficulty.lower()
-                    diff_input.fill(normalized_diff)
-                    page.wait_for_timeout(300)
-                    if page.locator('text="No options"').is_visible():
-                        raise ValueError(f"Difficulty '{q.difficulty}' (normalized to '{normalized_diff}') does not exist (No options found).")
-                    page.keyboard.press("ArrowDown")
-                    page.wait_for_timeout(50)
-                    page.keyboard.press("Enter")
-                    page.wait_for_timeout(100)
-                    if diff_input.input_value() != "":
-                        raise ValueError(f"Failed to select Difficulty '{q.difficulty}'.")
-                
+                    diff_input = form_block.locator('xpath=.//div[count(.//input[contains(@class, "select")]) = 1 and contains(., "Difficulty")]//input[contains(@class, "select")]').first
+                    if diff_input.count() == 0:
+                        diff_input = form_block.locator('input.select__input').nth(0)
+                    select_dropdown_option(diff_input, q.difficulty, "Difficulty")
+
                     # 3. Select Tags
-                    tag_container = form_block.locator('div:has-text("Tags *")')
-                    tag_input = tag_container.locator('input.select__input').first
-                    tag_input.click(force=True)
-                    page.wait_for_timeout(100)
-                    tag_input.fill(q.tags)
-                    page.wait_for_timeout(300)
-                    if page.locator('text="No options"').is_visible():
-                        raise ValueError(f"Tag '{q.tags}' does not exist in the system (No options found).")
-                    page.keyboard.press("ArrowDown")
-                    page.wait_for_timeout(50)
-                    page.keyboard.press("Enter")
-                    page.wait_for_timeout(100)
-                    if tag_input.input_value() != "":
-                        raise ValueError(f"Failed to select Tag '{q.tags}'.")
-                
+                    tag_input = form_block.locator('xpath=.//div[count(.//input[contains(@class, "select")]) = 1 and (contains(., "Tags") or contains(., "Tag"))]//input[contains(@class, "select")]').first
+                    if tag_input.count() == 0:
+                        tag_input = form_block.locator('input.select__input').nth(1)
+                    select_dropdown_option(tag_input, q.tags, "Tag")
+
                     # 4. Select Language
-                    lang_container = form_block.locator('div:has-text("Language *")')
-                    if lang_container.count() > 0:
-                        lang_input = lang_container.locator('input.select__input').first
-                        lang_input.click(force=True)
-                        page.wait_for_timeout(100)
-                        lang_input.fill(q.language)
-                        page.wait_for_timeout(300)
-                        if page.locator('text="No options"').is_visible():
-                            raise ValueError(f"Language '{q.language}' does not exist in the system (No options found).")
-                        page.keyboard.press("ArrowDown")
-                        page.wait_for_timeout(50)
-                        page.keyboard.press("Enter")
-                        page.wait_for_timeout(100)
-                        if lang_input.input_value() != "":
-                            raise ValueError(f"Failed to select Language '{q.language}'.")
+                    lang_input = form_block.locator('xpath=.//div[count(.//input[contains(@class, "select")]) = 1 and contains(., "Language")]//input[contains(@class, "select")]').first
+                    if lang_input.count() == 0 and form_block.locator('input.select__input').count() > 2:
+                        lang_input = form_block.locator('input.select__input').nth(2)
+                    if lang_input.count() > 0:
+                        select_dropdown_option(lang_input, q.language, "Language")
                 
                     # 5. Actual time
-                    page.locator('input[name="actualTime"]').nth(form_index).fill(str(q.actual_time_minutes))
+                    actual_time_inp = form_block.locator('input[name="actualTime"]')
+                    if actual_time_inp.count() > 0:
+                        actual_time_inp.first.fill(str(q.actual_time_minutes))
+                    else:
+                        page.locator('input[name="actualTime"]').nth(form_index).fill(str(q.actual_time_minutes))
                 
                     # 6. Question Text (Rich Text Editor - Tiptap / ProseMirror)
-                    editor = page.locator('.ProseMirror, [contenteditable="true"]').nth(form_index)
+                    editor = form_block.locator('.ProseMirror, [contenteditable="true"]').first
+                    if editor.count() == 0:
+                        editor = page.locator('.ProseMirror, [contenteditable="true"]').nth(form_index)
                     try:
                         injected = page.evaluate("""({ idx, html }) => {
                             const editors = document.querySelectorAll('.ProseMirror, [contenteditable="true"]');
@@ -434,21 +512,23 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 
                     # 7. File Attachment
                     if q.attachment_filename and getattr(q, 'resolved_attachment_path', None):
-                        att_path = q.resolved_attachment_path
-                        if att_path.exists():
+                        att_path = Path(q.resolved_attachment_path) if isinstance(q.resolved_attachment_path, (str, Path)) else None
+                        if att_path and att_path.exists():
                             print(f"Attaching: {q.attachment_filename}")
-                            abs_path = str(att_path.absolute())
                             try:
-                                xpath = f"(//*[contains(text(), 'Assignment Attachments')])[{form_index + 1}]/following::*[contains(text(), 'Click to upload')][1]"
-                                with page.expect_file_chooser() as fc_info:
-                                    page.locator(xpath).click(force=True)
-                                fc_info.value.set_files(abs_path)
-                                print(f"Successfully injected file: {q.attachment_filename}")
+                                att_input_loc = form_block.locator('input[type="file"]:not([accept*="image"])')
+                                if att_input_loc.count() == 0:
+                                    target_input = page.locator('input[type="file"]:not([accept*="image"])').nth(form_index)
+                                else:
+                                    target_input = att_input_loc.first
+                                    
+                                target_input.set_input_files(str(att_path.absolute()))
+                                print(f"Successfully injected file: {att_path.name}")
                                 page.wait_for_timeout(300)
                             except Exception as e:
                                 print(f"Failed to attach file: {e}")
                         else:
-                            print(f"WARNING: Attachment missing: {att_path}")
+                            print(f"⚠️ WARNING: Local attachment file not found ('{att_path.name if att_path else q.attachment_filename}').")
                         
                     # 8. User Response Acceptance
                     try:
@@ -463,7 +543,11 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                         }
                         for button_text, keywords in format_map.items():
                             if any(keyword in acceptance_str for keyword in keywords):
-                                page.locator(f'button:has-text("{button_text}")').last.click(timeout=2000)
+                                btn_loc = form_block.locator(f'button:has-text("{button_text}")')
+                                if btn_loc.count() > 0:
+                                    btn_loc.first.click(timeout=2000)
+                                else:
+                                    page.locator(f'button:has-text("{button_text}")').last.click(timeout=2000)
                                 page.wait_for_timeout(50)
                     except Exception as e:
                         pass
@@ -476,7 +560,9 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                         try:
                             page.locator('button', has_text='Save Questions').first.click(timeout=5000, force=True)
                         except Exception as e:
-                            print(f"\n[CRITICAL ERROR] Failed to click 'Save Questions' button! ({e})")
+                            print("\n=======================================================")
+                            print(f"❌ ERROR: Could not click 'Save Questions' button.")
+                            print("=======================================================\n")
                             batch_success = False
                             batch_error_reason = "Failed to click Save button"
                             break
@@ -492,7 +578,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                         # A cleared first form is the reliable completion signal for this SPA.
                         for wait_idx in range(60):
                             success_notice = page.locator(
-                                '.Toastify__toast, .toast, .alert, [role="alert"]'
+                                '.Toastify__toast, .toast, .alert, [role="alert"], div:has-text("saved successfully"), div:has-text("Question saved")'
                             ).filter(has_text=re.compile(r'success|saved|added|created', re.IGNORECASE))
                             first_title = page.locator('input[name="question_title"]').first
                             first_title_cleared = (
@@ -507,7 +593,7 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                                 confirm_btn = page.locator('button:has-text("Save Anyway"), button:has-text("Confirm")').first
                                 if confirm_btn.is_visible():
                                     if not confirm_handled:
-                                        print("\n[WARNING] Server detected similar questions!")
+                                        print("\n⚠️ WARNING: Similar questions found. Auto-clicking 'Save Anyway'.")
                                         
                                         # Scrape similar titles from modal before confirming
                                         try:
@@ -547,12 +633,23 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                                         confirm_btn.click(force=True)
                                         confirm_handled = True
                                         page.wait_for_timeout(2000) # Give it time to process the confirm
+                                        
+                                        # Check right after Save Anyway click if success toast appears
+                                        if page.locator('text=/saved successfully|question saved|created/i').count() > 0:
+                                            save_success = True
+                                            break
                                         continue
                             except Exception:
                                 pass
                                 
                             page.wait_for_timeout(1000)
                         
+                        # Fallback: check if page body contains success message
+                        if not save_success:
+                            toasts_check = page.locator('.Toastify__toast, .toast, .alert, [role="alert"]').all_inner_texts()
+                            if any("saved successfully" in t.lower() or "success" in t.lower() for t in toasts_check):
+                                save_success = True
+
                         if save_success:
                             print("[SUCCESS] Upload process completed successfully and questions were saved!")
                             success_count += len(pending_success)
@@ -567,15 +664,44 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                             with open(log_file, "a", encoding="utf-8", newline="") as f:
                                 writer = csv.writer(f)
                                 for completed_q in pending_success:
-                                    status = "success"
+                                    status = "SUCCESS"
                                     reason = ""
                                     if completed_q.absolute_index in similar_indexes:
-                                        status = "success (similar warning)"
+                                        status = "SUCCESS (Similar Warning Bypassed)"
                                         db_match = similar_details.get(completed_q.absolute_index, "Unknown DB Entry")
                                         reason = f"Server flagged as similar to DB entry: '{db_match}'"
-                                    writer.writerow([current_docx_name, completed_q.absolute_index, status, time.strftime("%Y-%m-%d %H:%M:%S"), reason])
+                                        
+                                    att_file_name = completed_q.attachment_filename or ""
+                                    if not att_file_name:
+                                        att_status = "No Attachment"
+                                        success_without_attachment_count += 1
+                                    elif completed_q.resolved_attachment_path and Path(completed_q.resolved_attachment_path).exists():
+                                        att_status = "Attached Successfully"
+                                        success_with_attachment_count += 1
+                                    else:
+                                        att_status = "Missing Local File"
+                                        success_without_attachment_count += 1
+
+                                    diag_tag = get_diagnostic_tag(status, reason, att_status)
+                                    writer.writerow([
+                                        time.strftime("%Y-%m-%d %H:%M:%S"),
+                                        config.get("course_name", ""),
+                                        config.get("module_name", ""),
+                                        current_docx_name,
+                                        completed_q.absolute_index,
+                                        f"Q{completed_q.question_number}",
+                                        completed_q.title[:60],
+                                        completed_q.tags,
+                                        att_file_name,
+                                        att_status,
+                                        status,
+                                        diag_tag,
+                                        reason
+                                    ])
                         else:
-                            print("\n[CRITICAL ERROR] SAVING: The website rejected the save or timed out!")
+                            print("\n=======================================================")
+                            print("❌ ERROR: Save failed on server (timed out or invalid fields).")
+                            print("=======================================================\n")
                             error_reason = "Save operation timed out (server took too long or fields are invalid)"
                             
                             # Capture a screenshot immediately to see validation errors / modals
@@ -612,15 +738,39 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                     form_index += 1
                     
                 except KeyboardInterrupt:
-                    print(f"\n[INTERRUPTED] Upload interrupted by user (Ctrl+C) on [Absolute #{q.absolute_index}]!")
-                    print("\n[ABORT] Stopping all remaining batches due to user interrupt.")
+                    print("\n=======================================================")
+                    print(f"🛑 CANCELLED: Upload stopped by user (Ctrl+C) on Q{q.absolute_index}.")
+                    print("=======================================================\n")
                     
                     # Log the failed batch to CSV before hard exiting
                     try:
                         with open(log_file, "a", encoding="utf-8", newline="") as f:
                             writer = csv.writer(f)
                             for failed_q in chunk:
-                                writer.writerow([current_docx_name, failed_q.absolute_index, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), "User interrupted (Ctrl+C)"])
+                                att_file_name = failed_q.attachment_filename or ""
+                                if not att_file_name:
+                                    att_status = "No Attachment"
+                                elif failed_q.resolved_attachment_path and Path(failed_q.resolved_attachment_path).exists():
+                                    att_status = "Attached Successfully"
+                                else:
+                                    att_status = "Missing Local File"
+
+                                diag_tag = get_diagnostic_tag("FAILED", "User interrupted (Ctrl+C)", att_status)
+                                writer.writerow([
+                                    time.strftime("%Y-%m-%d %H:%M:%S"),
+                                    config.get("course_name", ""),
+                                    config.get("module_name", ""),
+                                    current_docx_name,
+                                    failed_q.absolute_index,
+                                    f"Q{failed_q.question_number}",
+                                    failed_q.title[:60],
+                                    failed_q.tags,
+                                    att_file_name,
+                                    att_status,
+                                    "FAILED",
+                                    diag_tag,
+                                    "User interrupted (Ctrl+C)"
+                                ])
                     except Exception as e:
                         print(f"Could not write to run_log.csv: {e}")
                         
@@ -649,7 +799,30 @@ def run_uploader(questions: List[Question], config: dict, credentials: dict):
                 with open(log_file, "a", encoding="utf-8", newline="") as f:
                     writer = csv.writer(f)
                     for failed_q in chunk:
-                        writer.writerow([current_docx_name, failed_q.absolute_index, "failed", time.strftime("%Y-%m-%d %H:%M:%S"), batch_error_reason])
+                        att_file_name = failed_q.attachment_filename or ""
+                        if not att_file_name:
+                            att_status = "No Attachment"
+                        elif failed_q.resolved_attachment_path and Path(failed_q.resolved_attachment_path).exists():
+                            att_status = "Attached Successfully"
+                        else:
+                            att_status = "Missing Local File"
+
+                        diag_tag = get_diagnostic_tag("FAILED", batch_error_reason, att_status)
+                        writer.writerow([
+                            time.strftime("%Y-%m-%d %H:%M:%S"),
+                            config.get("course_name", ""),
+                            config.get("module_name", ""),
+                            current_docx_name,
+                            failed_q.absolute_index,
+                            f"Q{failed_q.question_number}",
+                            failed_q.title[:60],
+                            failed_q.tags,
+                            att_file_name,
+                            att_status,
+                            "FAILED",
+                            diag_tag,
+                            batch_error_reason
+                        ])
                         failed_questions_list.append(failed_q.absolute_index)
                 
                 print("Continuing with the next batch. Failed questions will be available for retry from run_log.csv.")

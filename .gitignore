@@ -16,6 +16,12 @@ playwright-report/
 blob-report/
 playwright/.cache/
 
+# Environment variables and secrets
+.env
+
+# Temporary scratch folder
+scratch/
+
 # IDEs and Editors
 .vscode/
 .idea/

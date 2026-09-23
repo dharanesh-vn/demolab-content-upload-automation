@@ -40,7 +40,9 @@ def main():
     username = os.getenv("AMYPO_USERNAME")
     password = os.getenv("AMYPO_PASSWORD")
     if not username or not password or username == "your_email_here@example.com":
-        print("Please set your real AMYPO_USERNAME and AMYPO_PASSWORD in the .env file.")
+        print("\n=======================================================")
+        print("❌ ERROR: Missing credentials. Please set AMYPO_USERNAME and AMYPO_PASSWORD in .env.")
+        print("=======================================================\n")
         return
 
     # Load config safely
@@ -48,10 +50,14 @@ def main():
         with open("config.json", "r") as f:
             config = json.load(f)
     except FileNotFoundError:
-        print("\n[ERROR] 'config.json' file is missing! Please make sure it exists in the same folder as this script.")
+        print("\n=======================================================")
+        print("❌ ERROR: 'config.json' file is missing in project folder.")
+        print("=======================================================\n")
         return
     except json.JSONDecodeError:
-        print("\n[ERROR] 'config.json' is corrupted or contains invalid JSON formatting. Please check it for syntax errors.")
+        print("\n=======================================================")
+        print("❌ ERROR: 'config.json' file contains invalid JSON formatting.")
+        print("=======================================================\n")
         return
         
     print("\n=======================================================")
@@ -109,11 +115,18 @@ def main():
         
         # Pre-check attachment existence using rglob
         if q.attachment_filename:
-            # We search the entire project folder recursively for the filename
             matched_files = list(project_folder.rglob(q.attachment_filename))
             if not matched_files:
-                print(f"\n[WARNING] Could not find attachment '{q.attachment_filename}' for Q{q.question_number}!")
-                print(f"I searched the entire directory: {project_folder}")
+                # Fallback search by stem matching (.docx or .pdf)
+                base_name = Path(q.attachment_filename).stem
+                matched_files = list(project_folder.rglob(f"{base_name}.*"))
+                
+            if matched_files:
+                q.resolved_attachment_path = matched_files[0]
+            else:
+                print("\n=======================================================")
+                print(f"⚠️ WARNING: Local attachment file not found ('{q.attachment_filename}' for Q{q.question_number}).")
+                print("=======================================================\n")
                 while True:
                     ans = input("Do you want to proceed and upload this question WITHOUT the attachment? (Y/N): ").strip().upper()
                     if ans == 'Y':
@@ -122,9 +135,6 @@ def main():
                     elif ans == 'N':
                         print("Exiting so you can fix the missing attachment.")
                         return
-            else:
-                # Add the resolved absolute path to the question object temporarily for the uploader
-                q.resolved_attachment_path = matched_files[0]
                 
     if not validated_questions:
         print("No valid questions found in docx.")
